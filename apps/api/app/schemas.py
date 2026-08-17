@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, mo
 from app.models import (
     ExtractionStatus,
     ExtractorKind,
+    LimitType,
+    LocationType,
     NotamKind,
     NotamSeries,
     RequestSource,
@@ -68,22 +70,61 @@ class LoginRequest(BaseModel):
 
 
 class NotamRequestCreate(BaseModel):
+    """Mirrors GCAA-AIS-NTM-FR01 (NOTAM Request Form) field-for-field. See
+    that form's Item A)-G) and the originator block at the bottom."""
+
     source: RequestSource = RequestSource.PORTAL
     originator_name: str = Field(min_length=2, max_length=200)
     originator_email: EmailStr | None = None
+    originator_organisation: str | None = Field(default=None, max_length=200)
+    originator_phone: str | None = Field(default=None, max_length=40)
     originator_reference: str | None = Field(default=None, max_length=120)
-    location_indicator: str = Field(min_length=4, max_length=4)
+    # Item A)
+    location_type: LocationType = LocationType.AD
+    location_indicator: str = Field(min_length=1, max_length=60)
+    # NOTAM N/R/C + the "NOTAM Series & No./Year" box next to R and C
+    requested_kind: NotamKind = NotamKind.NEW
+    referenced_notam_number: str | None = Field(default=None, max_length=40)
+    # Item B)/C)
+    start_at: datetime | None = None
+    end_at: datetime | None = None
+    end_confirmed: bool = False
+    end_permanent: bool = False
+    end_estimated: bool = False
+    # Item D) (optional)
+    periods_of_activity: str | None = Field(default=None, max_length=2000)
+    # Item E) -- "Full Text" for New/Replacement or "First Line" for Cancel
     raw_text: str = Field(min_length=5, max_length=20_000)
+    # Items F)/G) (optional)
+    lower_limit_sfc: bool = False
+    lower_limit_value: str | None = Field(default=None, max_length=10)
+    lower_limit_type: LimitType | None = None
+    upper_limit_unl: bool = False
+    upper_limit_value: str | None = Field(default=None, max_length=10)
+    upper_limit_type: LimitType | None = None
     requested_series: NotamSeries | None = None
     safety_critical: bool = False
 
     @field_validator("location_indicator")
     @classmethod
     def normalize_location(cls, value: str) -> str:
-        value = value.upper().strip()
-        if not value.isalpha():
-            raise ValueError("Location indicator must contain four letters")
-        return value
+        return value.upper().strip()
+
+    @model_validator(mode="after")
+    def check_location_format(self) -> "NotamRequestCreate":
+        # Only AD/FIR are ICAO 4-letter indicators; Airspace names are
+        # free text on the paper form (e.g. "Accra TMA").
+        if self.location_type in {LocationType.AD, LocationType.FIR} and (
+            len(self.location_indicator) != 4 or not self.location_indicator.isalpha()
+        ):
+            raise ValueError(f"{self.location_type.value} location must be a 4-letter ICAO indicator")
+        return self
+
+    @model_validator(mode="after")
+    def check_reference_required_for_replace_cancel(self) -> "NotamRequestCreate":
+        if self.requested_kind in {NotamKind.REPLACE, NotamKind.CANCEL} and not self.referenced_notam_number:
+            raise ValueError("Replace/Cancel requests must reference the NOTAM series & number/year being actioned")
+        return self
 
 
 class RequestRead(ORMModel):
@@ -93,9 +134,26 @@ class RequestRead(ORMModel):
     status: WorkflowStatus
     originator_name: str
     originator_email: str | None
+    originator_organisation: str | None
+    originator_phone: str | None
     originator_reference: str | None
+    location_type: LocationType
     location_indicator: str
+    requested_kind: NotamKind
+    referenced_notam_number: str | None
+    start_at: datetime | None
+    end_at: datetime | None
+    end_confirmed: bool
+    end_permanent: bool
+    end_estimated: bool
+    periods_of_activity: str | None
     raw_text: str
+    lower_limit_sfc: bool
+    lower_limit_value: str | None
+    lower_limit_type: LimitType | None
+    upper_limit_unl: bool
+    upper_limit_value: str | None
+    upper_limit_type: LimitType | None
     requested_series: NotamSeries | None
     safety_critical: bool
     acknowledgement_sent_at: datetime | None
@@ -129,6 +187,7 @@ class NotamDraftCreate(QLineInput):
     item_e: str = Field(min_length=3, max_length=1000)
     item_f: str | None = Field(default=None, max_length=40)
     item_g: str | None = Field(default=None, max_length=40)
+    aip_supplement_reference: str | None = Field(default=None, max_length=80)
 
 
 class NotamRead(ORMModel):
@@ -154,6 +213,7 @@ class NotamRead(ORMModel):
     item_e: str
     item_f: str | None
     item_g: str | None
+    aip_supplement_reference: str | None
     formatted_message: str
     aixm_payload: dict[str, Any] | None
     aixm_xml: str | None

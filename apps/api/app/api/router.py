@@ -88,6 +88,39 @@ async def me(user: CurrentUser) -> User:
     return user
 
 
+def _notam_request_fields(payload: NotamRequestCreate) -> dict[str, object]:
+    """Every NotamRequestCreate field that maps 1:1 onto a NotamRequest
+    column, shared between the authenticated and public intake endpoints
+    so the two paths can't silently drift out of field parity with each
+    other (or with GCAA-AIS-NTM-FR01, which both replace)."""
+    return {
+        "originator_name": payload.originator_name,
+        "originator_email": str(payload.originator_email) if payload.originator_email else None,
+        "originator_organisation": payload.originator_organisation,
+        "originator_phone": payload.originator_phone,
+        "originator_reference": payload.originator_reference,
+        "location_type": payload.location_type,
+        "location_indicator": payload.location_indicator,
+        "requested_kind": payload.requested_kind,
+        "referenced_notam_number": payload.referenced_notam_number,
+        "start_at": payload.start_at,
+        "end_at": payload.end_at,
+        "end_confirmed": payload.end_confirmed,
+        "end_permanent": payload.end_permanent,
+        "end_estimated": payload.end_estimated,
+        "periods_of_activity": payload.periods_of_activity,
+        "raw_text": payload.raw_text,
+        "lower_limit_sfc": payload.lower_limit_sfc,
+        "lower_limit_value": payload.lower_limit_value,
+        "lower_limit_type": payload.lower_limit_type,
+        "upper_limit_unl": payload.upper_limit_unl,
+        "upper_limit_value": payload.upper_limit_value,
+        "upper_limit_type": payload.upper_limit_type,
+        "requested_series": payload.requested_series,
+        "safety_critical": payload.safety_critical,
+    }
+
+
 @router.post("/requests", response_model=RequestRead, status_code=201, tags=["requests"])
 async def create_request(
     payload: NotamRequestCreate,
@@ -98,15 +131,9 @@ async def create_request(
     request = NotamRequest(
         request_number=f"REQ-{now:%y%m}-{uuid.uuid4().hex[:5].upper()}",
         source=payload.source,
-        originator_name=payload.originator_name,
-        originator_email=str(payload.originator_email) if payload.originator_email else None,
-        originator_reference=payload.originator_reference,
-        location_indicator=payload.location_indicator,
-        raw_text=payload.raw_text,
-        requested_series=payload.requested_series,
-        safety_critical=payload.safety_critical,
         created_by_id=user.id,
         assigned_to_id=user.id if user.role == Role.AIS_OFFICER else None,
+        **_notam_request_fields(payload),
     )
     session.add(request)
     await session.flush()
@@ -141,14 +168,8 @@ async def create_public_request(payload: NotamRequestCreate, session: Session) -
     request = NotamRequest(
         request_number=f"REQ-{now:%y%m}-{uuid.uuid4().hex[:5].upper()}",
         source=RequestSource.PORTAL,
-        originator_name=payload.originator_name,
-        originator_email=str(payload.originator_email) if payload.originator_email else None,
-        originator_reference=payload.originator_reference,
-        location_indicator=payload.location_indicator,
-        raw_text=payload.raw_text,
-        requested_series=payload.requested_series,
-        safety_critical=payload.safety_critical,
         created_by_id=portal_user.id,
+        **_notam_request_fields(payload),
     )
     session.add(request)
     await session.flush()

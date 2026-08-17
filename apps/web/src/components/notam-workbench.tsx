@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import type { AuditEventEntry, ExtractionRun, NotamDraftResult, NotamRequest, PublicationDelivery, RuleMatch, WorkflowStatus } from "@/lib/types";
-import { acceptExtractedField, getAuditEvents, getDeliveries, getExtraction, getRequestNotam, getRuleByQcode, rerunExtraction, retryDelivery, saveDraft, workflowAction } from "@/lib/api";
+import type { AipDatasetSummary, AuditEventEntry, ExtractionRun, NotamDraftResult, NotamRequest, PublicationDelivery, RuleMatch, SystemStatus, WorkflowStatus } from "@/lib/types";
+import { acceptExtractedField, getAipDataset, getAuditEvents, getDeliveries, getExtraction, getRequestNotam, getRuleByQcode, getSystemStatus, rerunExtraction, retryDelivery, saveDraft, workflowAction } from "@/lib/api";
 import { StatusPill } from "./status-pill";
 import { useCurrentUser } from "./user-context";
 
@@ -18,7 +18,7 @@ const schema = z.object({
   upper_limit: z.string().regex(/^\d{3}$/), coordinates_radius: z.string().regex(/^\d{4}[NS]\d{5}[EW]\d{3}$/),
   item_a: z.string().min(4).max(8), item_b: z.string().min(16), item_c: z.string().min(16),
   item_c_qualifier: z.enum(["", "EST", "PERM"]), item_d: z.string(), item_e: z.string().min(3).max(1000),
-  item_f: z.string(), item_g: z.string()
+  item_f: z.string(), item_g: z.string(), aip_supplement_reference: z.string()
 });
 type FormData = z.infer<typeof schema>;
 
@@ -27,7 +27,7 @@ const defaults: FormData = {
   lower_limit:"000",upper_limit:"025",coordinates_radius:"0550N00010W010",item_a:"DGAC",
   item_b:"2026-08-17T06:00",item_c:"2026-08-20T18:00",item_c_qualifier:"",item_d:"",
   item_e:"THE FOLLOWING TEMPORARY RESTRICTED AREA ESTABLISHED DUE UNMANNED ACFT FLIGHT: CIRCLE RADIUS 10NM CENTRED ON 0550N 00010W. CTN ADVISED.",
-  item_f:"SFC",item_g:"2500FT AGL"
+  item_f:"SFC",item_g:"2500FT AGL",aip_supplement_reference:""
 };
 
 const EDITABLE_STATUSES: WorkflowStatus[] = ["received", "triage", "draft", "changes_requested"];
@@ -59,6 +59,8 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
   const [lastDraft,setLastDraft]=useState<NotamDraftResult | null>(null);
   const [reviewComment,setReviewComment]=useState("");
   const [deliveries,setDeliveries]=useState<PublicationDelivery[] | null>(null);
+  const [systemStatus,setSystemStatus]=useState<SystemStatus | null>(null);
+  const [aipDataset,setAipDataset]=useState<AipDatasetSummary | null>(null);
   const {register,handleSubmit,watch,reset,formState:{errors}}=useForm<FormData>({resolver:zodResolver(schema),defaultValues:defaults});
   const values=watch();
   const isEditable = EDITABLE_STATUSES.includes(request.status);
@@ -75,11 +77,13 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
           lower_limit:notam.lower_limit,upper_limit:notam.upper_limit,coordinates_radius:notam.coordinates_radius,
           item_a:notam.item_a,item_b:toLocalInput(notam.item_b),item_c:notam.item_c?toLocalInput(notam.item_c):"",
           item_c_qualifier:notam.item_c_qualifier??"",item_d:notam.item_d??"",item_e:notam.item_e,
-          item_f:notam.item_f??"",item_g:notam.item_g??""
+          item_f:notam.item_f??"",item_g:notam.item_g??"",aip_supplement_reference:notam.aip_supplement_reference??""
         });
       }
     }).catch(()=>{});
     getExtraction(request.id).then((run)=>{if(!cancelled)setExtraction(run)}).catch(()=>{if(!cancelled)setExtraction(null)});
+    getSystemStatus().then((s)=>{if(!cancelled)setSystemStatus(s)}).catch(()=>{});
+    getAipDataset().then((d)=>{if(!cancelled)setAipDataset(d)}).catch(()=>{if(!cancelled)setAipDataset(null)});
     return ()=>{cancelled=true};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[request.id]);
@@ -248,7 +252,9 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
           </div>
           <button type="button" onClick={()=>setTab("validation")}>Explain <ChevronRight/></button>
         </div><div className="field-grid qline"><Field label="Q-code" error={errors.q_code?.message}><input {...register("q_code")}/></Field><Field label="Traffic"><input {...register("traffic")}/></Field><Field label="Purpose"><input {...register("purpose")}/></Field><Field label="Scope"><input {...register("scope")}/></Field><Field label="Lower"><input {...register("lower_limit")}/></Field><Field label="Upper"><input {...register("upper_limit")}/></Field><Field label="Coordinates / radius"><input {...register("coordinates_radius")}/></Field></div></FormSection>
-        <FormSection number="03" title="Location & validity" copy="All values normalized to UTC"><div className="field-grid four"><Field label="Item A) location"><input {...register("item_a")}/></Field><Field label="Item B) start UTC"><input type="datetime-local" {...register("item_b")}/></Field><Field label="Item C) end UTC"><input type="datetime-local" {...register("item_c")}/></Field><Field label="Qualifier"><select {...register("item_c_qualifier")}><option value="">Confirmed</option><option>EST</option><option>PERM</option></select></Field></div></FormSection>
+        <FormSection number="03" title="Location & validity" copy="All values normalized to UTC"><div className="field-grid four"><Field label="Item A) location"><input {...register("item_a")}/></Field><Field label="Item B) start UTC"><input type="datetime-local" {...register("item_b")}/></Field><Field label="Item C) end UTC"><input type="datetime-local" {...register("item_c")}/></Field><Field label="Qualifier"><select {...register("item_c_qualifier")}><option value="">Confirmed</option><option>EST</option><option>PERM</option></select></Field></div>
+        {values.item_c_qualifier==="PERM"?<div className="field-grid two"><Field label="AIP Supplement reference"><input placeholder="e.g. AIP SUP 04/26" {...register("aip_supplement_reference")}/></Field></div>:null}
+        </FormSection>
         <FormSection number="04" title="NOTAM text" copy="Operational plain language for PIB"><Field label="Item E)" error={errors.item_e?.message}><textarea rows={4} {...register("item_e")}/></Field><div className="field-grid two"><Field label="Item F) lower limit"><input {...register("item_f")}/></Field><Field label="Item G) upper limit"><input {...register("item_g")}/></Field></div></FormSection>
         <div className="transmission-preview"><div><strong>Transmission preview</strong><span>ICAO text NOTAM</span></div><pre>{lastDraft?lastDraft.formatted_message:preview}</pre></div>
       </form>:null}
@@ -281,7 +287,7 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
         {history.map((event)=><div className="history-row" key={event.id}><span>{new Date(event.created_at).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})}</span><History/><div><strong>{event.action.replace(/_/g," ")}</strong><p>{event.actor_name}{event.from_state&&event.to_state?` · ${event.from_state} → ${event.to_state}`:""}</p></div></div>)}
       </div>:null}
       </section>
-      <aside className="assurance-pane"><div className="pane-title"><div><h2>Assurance</h2><p>Live rules & evidence</p></div><span className="score-badge">{lastDraft?(lastDraft.validation_result.valid?"OK":"ISSUES"):"—"}</span></div><AssuranceBlock title="Mandatory gates" items={mandatoryGateItems(lastDraft)}/><AssuranceBlock title="Rule provenance" items={[{tone:"ok",label:"ICAO Doc 8126 · Appendix G"},{tone:"ok",label:"GCAA AIS Manual · Chapter 7"},{tone:"ok",label:"Ghana AIP · Current AIRAC"}]}/><AssuranceBlock title="Downstream products" items={[{tone:"ok",label:"ICAO text NOTAM · AMHS/AFTN"},{tone:"ok",label:"Digital NOTAM · AIXM 5.1.1"},{tone:"ok",label:"GCAA public web portal"},{tone:"ok",label:"Email distribution"}]}/></aside>
+      <aside className="assurance-pane"><div className="pane-title"><div><h2>Assurance</h2><p>Live rules & evidence</p></div><span className="score-badge">{lastDraft?(lastDraft.validation_result.valid?"OK":"ISSUES"):"—"}</span></div><AssuranceBlock title="Mandatory gates" items={mandatoryGateItems(lastDraft)}/><AssuranceBlock title="Rule provenance" items={provenanceItems(aipDataset)}/><AssuranceBlock title="Downstream products" items={downstreamItems(systemStatus)}/></aside>
     </div></div>;
 }
 
@@ -305,6 +311,30 @@ function mandatoryGateItems(lastDraft: NotamDraftResult | null): AssuranceItem[]
       : { tone: "warn", label: `Selection criteria not satisfied -- ${lastDraft.validation_result.errors.length} blocking issue(s)` };
   const warnings = (lastDraft?.validation_result.warnings ?? []).map((label): AssuranceItem => ({ tone: "warn", label }));
   return [gate, ...warnings];
+}
+
+// These two used to be hardcoded all-"ok" lists, including a "Ghana AIP ·
+// Current AIRAC" line that claimed live AIRAC currency no part of this
+// system actually tracks. Same tone logic as /integrations, so this panel
+// can't drift from what that page honestly discloses.
+function provenanceItems(aipDataset: AipDatasetSummary | null): AssuranceItem[] {
+  return [
+    { tone: "ok", label: "ICAO Doc 8126 · Appendix G" },
+    { tone: "ok", label: "GCAA AIS Manual · Chapter 7" },
+    aipDataset
+      ? { tone: aipDataset.source === "seed" ? "warn" : "ok", label: `Ghana AIP · ${aipDataset.version}${aipDataset.source === "seed" ? " (seed data, not AIRAC-current)" : ""}` }
+      : { tone: "warn", label: "Ghana AIP · no dataset active" }
+  ];
+}
+
+function downstreamItems(status: SystemStatus | null): AssuranceItem[] {
+  const simulated = !status || status.publication_mode === "simulated_sync";
+  return [
+    { tone: simulated ? "warn" : "ok", label: `ICAO text NOTAM · AMHS/AFTN${simulated ? " (simulated)" : ""}` },
+    { tone: "ok", label: "Digital NOTAM · AIXM 5.1.1" },
+    { tone: simulated ? "warn" : "ok", label: `GCAA public web portal${simulated ? " (simulated)" : ""}` },
+    { tone: simulated ? "warn" : "ok", label: `Email distribution${simulated ? " (simulated)" : ""}` }
+  ];
 }
 
 function AssuranceBlock({title,items}:{title:string;items:AssuranceItem[]}){return <section className="assurance-block"><h3>{title}</h3>{items.map((item)=><div className={`assurance-row ${item.tone!=="ok"?item.tone:""}`} key={item.label}><span>{item.tone==="ok"?<Check/>:<TriangleAlert/>}</span><strong>{item.label}</strong></div>)}</section>}

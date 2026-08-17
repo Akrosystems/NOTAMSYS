@@ -114,6 +114,9 @@ async def create_draft(
                 f"Item A location indicator {draft.item_a.upper()} was not found in the "
                 "active AIP reference dataset -- confirm it is correct before approval"
             )
+    warnings.extend(
+        qline.validate_perm_aip_supplement(draft.item_c_qualifier, draft.aip_supplement_reference)
+    )
     validation["warnings"] = warnings
 
     errors = list(validation["errors"])
@@ -170,6 +173,7 @@ async def create_draft(
             item_e=draft.item_e.upper(),
             item_f=draft.item_f,
             item_g=draft.item_g,
+            aip_supplement_reference=draft.aip_supplement_reference,
             replaces_notam_id=draft.replaces_notam_id,
             formatted_message=formatted,
             validation_result=validation,

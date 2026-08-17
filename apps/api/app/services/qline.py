@@ -98,6 +98,25 @@ def validate_item_b_text(item_b_source_text: str | None) -> list[str]:
     return []
 
 
+def validate_perm_aip_supplement(
+    item_c_qualifier: str | None, aip_supplement_reference: str | None
+) -> list[str]:
+    """ICAO Annex 15 / Doc 8126 practice: a permanent change is generally
+    published via AIP amendment (AIRAC cycle), with the PERM NOTAM as the
+    interim/triggering notice, not a standalone indefinite record. This is
+    advisory, not blocking -- the reference may genuinely not exist yet at
+    drafting time -- and deliberately doesn't compute "the current AIRAC
+    cycle" itself: that needs a verified epoch date this project isn't
+    confident enough in to assert without risking a wrong answer stated
+    with false authority. See docs/OPERATIONAL_BOUNDARY.md."""
+    if item_c_qualifier == "PERM" and not aip_supplement_reference:
+        return [
+            "PERM NOTAM has no AIP Supplement reference -- confirm this permanent "
+            "change is scheduled for AIP amendment via the next AIRAC cycle"
+        ]
+    return []
+
+
 def multi_fir_indicator(nationality_prefix: str) -> str:
     """Doc 8126 III-6.4/5: an event spanning more than one FIR uses the
     issuing State's two-letter nationality prefix followed by XX, never a

@@ -55,6 +55,23 @@ class NotamKind(str, enum.Enum):
     CANCEL = "NOTAMC"
 
 
+class LocationType(str, enum.Enum):
+    """Item A) on GCAA-AIS-NTM-FR01: the originator picks exactly one of
+    these three radio options and enters the corresponding value."""
+
+    AD = "AD"
+    FIR = "FIR"
+    AIRSPACE = "AIRSPACE"
+
+
+class LimitType(str, enum.Enum):
+    """Items F)/G) on GCAA-AIS-NTM-FR01."""
+
+    FL = "FL"
+    AGL = "AGL"
+    AMSL = "AMSL"
+
+
 class ExtractionStatus(str, enum.Enum):
     PENDING = "pending"
     RUNNING = "running"
@@ -94,11 +111,50 @@ class NotamRequest(Base):
     originator_name: Mapped[str] = mapped_column(String(200))
     originator_email: Mapped[str | None] = mapped_column(String(320))
     originator_reference: Mapped[str | None] = mapped_column(String(120))
-    location_indicator: Mapped[str] = mapped_column(String(4), index=True)
+    # Item A) on GCAA-AIS-NTM-FR01 is Location + a choice of AD/FIR/Airspace,
+    # not a fixed 4-letter aerodrome code -- widened from String(4) to hold
+    # free-text airspace names, still index-friendly for AD/FIR lookups.
+    location_indicator: Mapped[str] = mapped_column(String(60), index=True)
+    location_type: Mapped[LocationType] = mapped_column(
+        Enum(LocationType, name="location_type"), default=LocationType.AD
+    )
     raw_text: Mapped[str] = mapped_column(Text)
     requested_series: Mapped[NotamSeries | None] = mapped_column(
         Enum(NotamSeries, name="notam_series")
     )
+    # The rest of this block mirrors GCAA-AIS-NTM-FR01 field-for-field:
+    # requested_kind is NOTAM N/R/C, referenced_notam_number is the "NOTAM
+    # Series & No./Year" box that appears next to Replace and Cancel.
+    requested_kind: Mapped[NotamKind] = mapped_column(
+        Enum(NotamKind, name="notam_kind"), default=NotamKind.NEW
+    )
+    referenced_notam_number: Mapped[str | None] = mapped_column(String(40))
+    # Item B) Start time / Item C) End time. All three End qualifiers are
+    # mutually-relevant checkboxes on the paper form (Confirmed / Permanent
+    # / Estimated) -- captured as booleans rather than one enum since the
+    # form doesn't enforce them as mutually exclusive at intake time; that
+    # gets resolved into the single item_c_qualifier on the Notam draft
+    # once AIS staff prepare it.
+    start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    end_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+    end_permanent: Mapped[bool] = mapped_column(Boolean, default=False)
+    end_estimated: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Item D) (optional)
+    periods_of_activity: Mapped[str | None] = mapped_column(Text)
+    # Items F)/G) (optional). SFC/UNL are their own checkboxes on the form,
+    # not just an absence of a value.
+    lower_limit_sfc: Mapped[bool] = mapped_column(Boolean, default=False)
+    lower_limit_value: Mapped[str | None] = mapped_column(String(10))
+    lower_limit_type: Mapped[LimitType | None] = mapped_column(Enum(LimitType, name="limit_type"))
+    upper_limit_unl: Mapped[bool] = mapped_column(Boolean, default=False)
+    upper_limit_value: Mapped[str | None] = mapped_column(String(10))
+    upper_limit_type: Mapped[LimitType | None] = mapped_column(Enum(LimitType, name="limit_type"))
+    # Originator block: the form separates the person (Name/Email) from
+    # their Organisation/Rank, plus a phone number neither originator_name
+    # nor originator_reference ever captured.
+    originator_organisation: Mapped[str | None] = mapped_column(String(200))
+    originator_phone: Mapped[str | None] = mapped_column(String(40))
     safety_critical: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     acknowledgement_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     extracted_data: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
@@ -167,6 +223,14 @@ class Notam(Base):
     item_e: Mapped[str] = mapped_column(Text)
     item_f: Mapped[str | None] = mapped_column(String(40))
     item_g: Mapped[str | None] = mapped_column(String(40))
+    # ICAO Annex 15 / Doc 8126 practice: a PERM NOTAM should generally be
+    # backed by an AIP Supplement (or scheduled AIRAC amendment), not stand
+    # alone indefinitely. This is a real, checkable cross-reference field --
+    # unlike computing "the current AIRAC cycle" ourselves, which would
+    # require an epoch date this project isn't confident enough in to
+    # assert without risking a wrong answer presented with false authority.
+    # See services/qline.py's PERM-without-reference warning.
+    aip_supplement_reference: Mapped[str | None] = mapped_column(String(80))
     formatted_message: Mapped[str] = mapped_column(Text)
     aixm_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     # Real, namespaced AIXM 5.1.1 Event XML (services/aixm/builder.py) --

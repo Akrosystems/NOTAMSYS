@@ -1165,6 +1165,140 @@ td small {
 .raw-entry {
   padding: 5px 18px 18px;
 }
+.notam-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 5px 18px 18px;
+}
+.public-form .notam-form-fields {
+  grid-column: 1/-1;
+}
+.notam-form-fields .field-grid {
+  margin-top: 0;
+}
+.notam-form-fields label {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+}
+.notam-form-fields input,
+.notam-form-fields select,
+.notam-form-fields textarea {
+  width: 100%;
+  margin-top: 5px;
+  border: 1px solid #ced7de;
+  border-radius: 7px;
+  padding: 9px;
+  font-size: 10px;
+  background: var(--surface);
+  font-weight: 400;
+}
+.notam-form-fields input:disabled,
+.notam-form-fields select:disabled {
+  background: var(--soft);
+  color: var(--muted);
+}
+.notam-form-fields input[type="checkbox"],
+.notam-form-fields input[type="radio"] {
+  width: auto;
+  margin: 0;
+}
+.notam-form-fields textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+.nrf-item {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+}
+.nrf-item legend {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 0 4px;
+}
+.notam-form-fields small {
+  font-weight: 400;
+  color: var(--muted);
+  font-size: 8px;
+}
+.nrf-location-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.nrf-radio,
+.nrf-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.nrf-location-value {
+  flex: 1;
+  min-width: 140px;
+  border: 1px solid #ced7de;
+  border-radius: 7px;
+  padding: 9px;
+  font-size: 10px;
+}
+.nrf-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.nrf-radio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 9px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+.nrf-inline-input {
+  border: 1px solid #ced7de;
+  border-radius: 7px;
+  padding: 6px 8px;
+  font-size: 9px;
+  font-weight: 400;
+  min-width: 180px;
+}
+.nrf-end-qualifiers {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 2px 2px 0;
+}
+.nrf-wide {
+  width: 100%;
+}
+.nrf-item .nrf-check {
+  margin-bottom: 6px;
+}
+.nrf-or {
+  font-size: 8px;
+  color: var(--muted);
+  margin: 0 8px 6px;
+}
+.nrf-limit-value {
+  width: 70px;
+  display: inline-block;
+  margin: 0 8px 0 0;
+  border: 1px solid #ced7de;
+  border-radius: 7px;
+  padding: 7px;
+  font-size: 9px;
+}
+.nrf-item select {
+  width: auto;
+  display: inline-block;
+  margin-top: 0;
+}
 .form-error {
   margin: 0 18px 12px;
   padding: 9px 12px;

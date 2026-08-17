@@ -40,6 +40,12 @@ export interface BrandingUpdateInput {
   description?: string;
 }
 
+export type LocationType = "AD" | "FIR" | "AIRSPACE";
+export type RequestedKind = "NOTAMN" | "NOTAMR" | "NOTAMC";
+export type LimitType = "FL" | "AGL" | "AMSL";
+
+// Mirrors GCAA-AIS-NTM-FR01 (NOTAM Request Form) field-for-field -- see
+// that form's Item A)-G) and the originator block.
 export interface NotamRequest {
   id: string;
   request_number: string;
@@ -47,9 +53,26 @@ export interface NotamRequest {
   status: WorkflowStatus;
   originator_name: string;
   originator_email?: string;
+  originator_organisation?: string | null;
+  originator_phone?: string | null;
   originator_reference?: string;
+  location_type: LocationType;
   location_indicator: string;
+  requested_kind: RequestedKind;
+  referenced_notam_number?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
+  end_confirmed: boolean;
+  end_permanent: boolean;
+  end_estimated: boolean;
+  periods_of_activity?: string | null;
   raw_text: string;
+  lower_limit_sfc: boolean;
+  lower_limit_value?: string | null;
+  lower_limit_type?: LimitType | null;
+  upper_limit_unl: boolean;
+  upper_limit_value?: string | null;
+  upper_limit_type?: LimitType | null;
   requested_series?: "A" | "B";
   safety_critical: boolean;
   received_at: string;
@@ -131,9 +154,26 @@ export interface NotamRequestInput {
   source?: "portal" | "email" | "aftn" | "upload" | "hand_delivery" | "raw_text";
   originator_name: string;
   originator_email?: string;
+  originator_organisation?: string;
+  originator_phone?: string;
   originator_reference?: string;
+  location_type?: LocationType;
   location_indicator: string;
+  requested_kind?: RequestedKind;
+  referenced_notam_number?: string;
+  start_at?: string;
+  end_at?: string;
+  end_confirmed?: boolean;
+  end_permanent?: boolean;
+  end_estimated?: boolean;
+  periods_of_activity?: string;
   raw_text: string;
+  lower_limit_sfc?: boolean;
+  lower_limit_value?: string;
+  lower_limit_type?: LimitType;
+  upper_limit_unl?: boolean;
+  upper_limit_value?: string;
+  upper_limit_type?: LimitType;
   requested_series?: "A" | "B";
   safety_critical?: boolean;
 }
@@ -210,6 +250,7 @@ export interface NotamDraftResult {
   item_e: string;
   item_f?: string;
   item_g?: string;
+  aip_supplement_reference?: string | null;
   formatted_message: string;
   validation_result: ValidationResult;
   ruleset_version: string;
@@ -246,4 +287,5 @@ export interface DraftPayload {
   item_e: string;
   item_f?: string;
   item_g?: string;
+  aip_supplement_reference?: string;
 }

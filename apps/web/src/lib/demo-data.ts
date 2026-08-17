@@ -8,8 +8,19 @@ export const dashboardSummary: DashboardSummary = {
   first_pass_quality: 99.4
 };
 
+const demoDefaults = {
+  location_type: "AD" as const,
+  requested_kind: "NOTAMN" as const,
+  end_confirmed: false,
+  end_permanent: false,
+  end_estimated: false,
+  lower_limit_sfc: false,
+  upper_limit_unl: false
+};
+
 export const requests: NotamRequest[] = [
   {
+    ...demoDefaults,
     id: "f2df9f7b-0fb4-4d87-8277-f878b91f4271",
     request_number: "REQ-0826-047",
     source: "email",
@@ -24,6 +35,7 @@ export const requests: NotamRequest[] = [
     updated_at: "2026-08-15T14:28:00Z"
   },
   {
+    ...demoDefaults,
     id: "a7eb9ee1-7451-4505-bf4b-fd93bfaf8097",
     request_number: "REQ-0826-046",
     source: "upload",
@@ -37,6 +49,7 @@ export const requests: NotamRequest[] = [
     updated_at: "2026-08-15T14:16:00Z"
   },
   {
+    ...demoDefaults,
     id: "79a24034-bd99-4e03-8318-e4e3e285fb9c",
     request_number: "REQ-0826-045",
     source: "portal",
@@ -50,6 +63,7 @@ export const requests: NotamRequest[] = [
     updated_at: "2026-08-15T14:02:00Z"
   },
   {
+    ...demoDefaults,
     id: "a2291432-9a6e-4fdb-a92b-f91b339d0982",
     request_number: "REQ-0826-044",
     source: "aftn",
