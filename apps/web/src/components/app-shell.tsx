@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getDashboard, getRuleVersions, getSystemStatus } from "@/lib/api";
 import type { RuleVersionSummary, SystemStatus } from "@/lib/types";
 import { DemoBanner } from "./demo-banner";
@@ -33,13 +33,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [counts, setCounts] = useState<{ requests_in_queue: number; awaiting_specialist: number } | null>(null);
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [activeRuleset, setActiveRuleset] = useState<RuleVersionSummary | null>(null);
+  const initialized = useRef(false);
   useEffect(() => setOpen(false), [path]);
+  // Sidebar chrome (nav badge counts, system status, active ruleset) used
+  // to refetch on every single navigation -- three extra API round trips
+  // per click for data that rarely changes moment to moment. Fetch once
+  // instead, guarded by a ref rather than an empty dep array: the app
+  // always mounts at /login first (middleware redirects there), so a
+  // true mount-once fetch would never fire since this early-returns on
+  // /login -- this re-checks cheaply on each navigation until it
+  // succeeds once past login, then never again.
   useEffect(() => {
-    if (path === "/login" || path === "/submit") return;
-    getDashboard().then((summary) => setCounts(summary)).catch(() => setCounts(null));
+    if (path === "/login" || path === "/submit" || initialized.current) return;
+    initialized.current = true;
     getSystemStatus().then(setStatus).catch(() => setStatus(null));
     getRuleVersions().then((versions) => setActiveRuleset(versions.find((v) => v.active) ?? null)).catch(() => setActiveRuleset(null));
+    getDashboard().then((summary) => setCounts(summary)).catch(() => setCounts(null));
   }, [path]);
+  // Separate, genuinely mount-once effect for periodic count freshness --
+  // counts are the one piece of sidebar chrome that's actually
+  // time-sensitive; status/ruleset rarely change during a session.
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      getDashboard().then((summary) => setCounts(summary)).catch(() => setCounts(null));
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   if (path === "/login" || path === "/submit") return <>{children}</>;
   const isActive = (href: string) => href === "/" ? path === "/" : path.startsWith(href);
   return (

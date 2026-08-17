@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronDown, Clock3, LogOut, Menu, Moon, Sun } from "lucide-react";
+import { Bell, Check, ChevronDown, Clock3, Copy, LogOut, Menu, Moon, Share2, Sun } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getAuditEvents } from "@/lib/api";
@@ -46,6 +46,42 @@ function ThemeToggle() {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
+}
+
+function ShareIntakeLink() {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [url, setUrl] = useState("/submit");
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (typeof window !== "undefined") setUrl(`${window.location.origin}/submit`); }, []);
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      inputRef.current?.select();
+    }
+  };
+  return (
+    <div className="activity-bell" ref={ref}>
+      <button className="icon-button" aria-label="Share public intake link" onClick={() => setOpen((value) => !value)}><Share2/></button>
+      {open ? <div className="share-dropdown">
+        <strong>Public NOTAM request link</strong>
+        <p>Send this to an originator who needs to submit a request -- no account required. Submissions land in the request inbox as usual.</p>
+        <div className="share-link-row">
+          <input ref={inputRef} readOnly value={url} onFocus={(event) => event.target.select()}/>
+          <button onClick={copy}>{copied ? <Check/> : <Copy/>}{copied ? "Copied" : "Copy"}</button>
+        </div>
+      </div> : null}
+    </div>
+  );
 }
 
 function ActivityBell() {
@@ -124,6 +160,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       <div className="topbar-actions">
         <div className="utc-clock"><Clock3/><span><small>UTC</small><strong>{clock}</strong></span></div>
         <ThemeToggle />
+        <ShareIntakeLink />
         <ActivityBell />
         <UserMenu />
       </div>

@@ -281,10 +281,30 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
         {history.map((event)=><div className="history-row" key={event.id}><span>{new Date(event.created_at).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})}</span><History/><div><strong>{event.action.replace(/_/g," ")}</strong><p>{event.actor_name}{event.from_state&&event.to_state?` · ${event.from_state} → ${event.to_state}`:""}</p></div></div>)}
       </div>:null}
       </section>
-      <aside className="assurance-pane"><div className="pane-title"><div><h2>Assurance</h2><p>Live rules & evidence</p></div><span className="score-badge">{lastDraft?(lastDraft.validation_result.valid?"OK":"ISSUES"):"—"}</span></div><AssuranceBlock title="Mandatory gates" items={[lastDraft?.validation_result.valid?"Selection criteria satisfied":"Selection criteria not yet confirmed",...(lastDraft?.validation_result.warnings??[])]}/><AssuranceBlock title="Rule provenance" items={["ICAO Doc 8126 · Appendix G","GCAA AIS Manual · Chapter 7","Ghana AIP · Current AIRAC"]}/><AssuranceBlock title="Downstream products" items={["ICAO text NOTAM · AMHS/AFTN","Digital NOTAM · AIXM 5.1.1","GCAA public web portal","Email distribution"]}/></aside>
+      <aside className="assurance-pane"><div className="pane-title"><div><h2>Assurance</h2><p>Live rules & evidence</p></div><span className="score-badge">{lastDraft?(lastDraft.validation_result.valid?"OK":"ISSUES"):"—"}</span></div><AssuranceBlock title="Mandatory gates" items={mandatoryGateItems(lastDraft)}/><AssuranceBlock title="Rule provenance" items={[{tone:"ok",label:"ICAO Doc 8126 · Appendix G"},{tone:"ok",label:"GCAA AIS Manual · Chapter 7"},{tone:"ok",label:"Ghana AIP · Current AIRAC"}]}/><AssuranceBlock title="Downstream products" items={[{tone:"ok",label:"ICAO text NOTAM · AMHS/AFTN"},{tone:"ok",label:"Digital NOTAM · AIXM 5.1.1"},{tone:"ok",label:"GCAA public web portal"},{tone:"ok",label:"Email distribution"}]}/></aside>
     </div></div>;
 }
 
 function Field({label,error,children}:{label:string;error?:string;children:React.ReactNode}){return <label className="field"><span>{label}</span>{children}{error?<small className="field-error">{error}</small>:null}</label>}
 function FormSection({number,title,copy,children}:{number:string;title:string;copy:string;children:React.ReactNode}){return <section className="form-section"><header><span>{number}</span><div><h2>{title}</h2><p>{copy}</p></div><em><Check/> Complete</em></header>{children}</section>}
-function AssuranceBlock({title,items}:{title:string;items:string[]}){return <section className="assurance-block"><h3>{title}</h3>{items.map((item,index)=><div className={`assurance-row ${index===items.length-1&&title==="Mandatory gates"?"pending":""}`} key={item}><span>{index===items.length-1&&title==="Mandatory gates"?<TriangleAlert/>:<Check/>}</span><strong>{item}</strong></div>)}</section>}
+
+type AssuranceTone = "ok" | "warn" | "pending";
+type AssuranceItem = { tone: AssuranceTone; label: string };
+
+// The Mandatory gates panel used to always mark whichever item happened to
+// be *last* in the array as the pending/warning one -- a leftover from an
+// earlier fixed 4-item mock list. With real validation_result data the
+// item count varies, so that positional guess frequently showed a green
+// check next to text that said "not yet confirmed". Each item now carries
+// its own explicit tone instead of being inferred from array position.
+function mandatoryGateItems(lastDraft: NotamDraftResult | null): AssuranceItem[] {
+  const gate: AssuranceItem = !lastDraft
+    ? { tone: "pending", label: "Draft not yet prepared -- selection criteria not evaluated" }
+    : lastDraft.validation_result.valid
+      ? { tone: "ok", label: "Selection criteria satisfied" }
+      : { tone: "warn", label: `Selection criteria not satisfied -- ${lastDraft.validation_result.errors.length} blocking issue(s)` };
+  const warnings = (lastDraft?.validation_result.warnings ?? []).map((label): AssuranceItem => ({ tone: "warn", label }));
+  return [gate, ...warnings];
+}
+
+function AssuranceBlock({title,items}:{title:string;items:AssuranceItem[]}){return <section className="assurance-block"><h3>{title}</h3>{items.map((item)=><div className={`assurance-row ${item.tone!=="ok"?item.tone:""}`} key={item.label}><span>{item.tone==="ok"?<Check/>:<TriangleAlert/>}</span><strong>{item.label}</strong></div>)}</section>}

@@ -9,7 +9,6 @@ node_modules/
 out/
 coverage/
 *.tsbuildinfo
-pnpm-lock.yaml
 .turbo/
 
 # Python

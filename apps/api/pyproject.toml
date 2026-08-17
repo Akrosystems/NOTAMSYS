@@ -10,11 +10,17 @@ dependencies = [
   "email-validator>=2.2,<3",
   "fastapi>=0.116,<1",
   "httpx>=0.28,<1",
+  # AIXM 5.1.1 Event XML generation runs unconditionally on every draft
+  # save (services/workflow.py:create_draft) -- not actually optional
+  # despite the Phase 4 plan originally scoping it that way.
+  "lxml>=5.3,<6",
   "minio>=7.2,<8",
   "pydantic-settings>=2.10,<3",
   "pwdlib[argon2]>=0.2,<1",
   "pyjwt[crypto]>=2.10,<3",
+  "pyproj>=3.6,<4",
   "python-multipart>=0.0.20,<1",
+  "shapely>=2.0,<3",
   "sqlalchemy[asyncio]>=2.0,<2.1",
   "structlog>=25.4,<26",
   "uvicorn[standard]>=0.35,<1"
@@ -29,18 +35,17 @@ dev = [
   "pytest-cov>=6.2,<7",
   "ruff>=0.12,<1"
 ]
-# Optional: local OCR/NLP extraction pipeline (Phase 3). Not required to run
-# the core API/tests; the extraction worker degrades to "unavailable" without it.
+# Optional: local OCR/NLP extraction pipeline. Genuinely optional -- these
+# are lazily imported inside the functions that use them (see
+# services/extraction/ingest.py, ocr.py), so the app runs and NOTAMSYS_
+# EXTRACTION_ENABLED=false works fine without this group installed. Actual
+# scanned-image OCR (as opposed to PDF text-layer extraction, which only
+# needs pymupdf) also requires the tesseract binary itself on the host --
+# not a Python package, must be provisioned separately.
 ocr = [
   "pymupdf>=1.24,<2",
   "pytesseract>=0.3,<1",
   "pillow>=10.4,<11"
-]
-# Optional: AIXM 5.1.1/Digital NOTAM XML generation (Phase 4).
-aixm = [
-  "lxml>=5.3,<6",
-  "shapely>=2.0,<3",
-  "pyproj>=3.6,<4"
 ]
 
 [build-system]

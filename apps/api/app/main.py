@@ -50,7 +50,7 @@ app = FastAPI(
         "than it does."
     ),
     version="0.1.0",
-    contact={"name": "AkroSystems", "url": "https://github.com/Akrosystems/NOTAMSYS"},
+    contact={"name": "AkroSystems", "url": "https://akrosystems.com"},
     license_info={"name": "MIT", "url": "https://github.com/Akrosystems/NOTAMSYS/blob/main/LICENSE"},
     openapi_tags=OPENAPI_TAGS,
     docs_url="/docs" if settings.environment != "production" else None,
