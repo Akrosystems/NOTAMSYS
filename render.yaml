@@ -29,7 +29,10 @@ services:
     runtime: docker
     dockerfilePath: apps/api/Dockerfile
     dockerContext: apps/api
-    dockerCommand: "sh -c 'alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000'"
+    # No dockerCommand override -- Render doesn't run it through a shell, so
+    # the "&&" between alembic and uvicorn was being treated as literal text
+    # instead of a shell operator (confirmed live: "not found" exit 127).
+    # The Dockerfile's own CMD (shell form) does this correctly instead.
     plan: free
     region: oregon
     healthCheckPath: /health
