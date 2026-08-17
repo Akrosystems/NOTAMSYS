@@ -24,7 +24,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12", cache: pip }
-      - run: pip install -e ".[dev]"
+      # ocr extras (pymupdf/pytesseract/pillow) are genuinely optional at
+      # runtime -- lazily imported, gated by NOTAMSYS_EXTRACTION_ENABLED --
+      # but test_extraction_pipeline.py/test_extraction_api.py exercise the
+      # real PDF text-layer path (via NullOcr, no tesseract binary needed)
+      # and need pymupdf importable to do that meaningfully.
+      - run: pip install -e ".[dev,ocr]"
         working-directory: apps/api
       - run: ruff check .
         working-directory: apps/api
