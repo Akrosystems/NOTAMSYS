@@ -14,7 +14,7 @@ The codebase translates the GCAA Chapter 7 workflow into enforceable software st
 - **Public and staff intake**: an anonymous public request form and an authenticated staff intake flow, both backed by real endpoints (not UI mockups).
 - **Publication adapters**: real AFTN envelope construction and ITA-2 validation, a file-drop adapter for Comsoft/CADAS pickup, and real AIXM 5.1.1 event XML generation with geodesic geometry — all behind a common adapter interface so a live circuit can be added without touching the workflow engine.
 - **Append-only audit trail** for every transition, evidence attachment, extraction acceptance, rule activation and delivery retry.
-- **Admin console**: user management, ruleset activation, delivery retry — the real, non-fabricated superadmin control surface. Channel adapters (AFTN/CMS/SMTP) are configured via environment variables at deploy time; see [docs/OPERATIONAL_BOUNDARY.md](docs/OPERATIONAL_BOUNDARY.md) for exactly what's live.
+- **Admin console**: user management, ruleset activation, delivery retry and live platform branding (logo, name, subtitle, description — no restart needed) — the real, non-fabricated superadmin control surface. Channel adapters (AFTN/CMS/SMTP) are configured via environment variables at deploy time; see [docs/OPERATIONAL_BOUNDARY.md](docs/OPERATIONAL_BOUNDARY.md) for exactly what's live.
 
 ## Technology
 
