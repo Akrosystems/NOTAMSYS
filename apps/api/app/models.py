@@ -299,6 +299,27 @@ class RuleVersion(Base):
     approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class OrgSettings(Base):
+    """Singleton row (the app always fetches-or-creates the first one, see
+    _get_org_settings in api/router.py) holding admin-editable platform
+    branding. Deliberately separate from Settings in core/config.py, which
+    is env-var-based and immutable at runtime -- this is the one piece of
+    genuinely live, DB-backed, admin-editable configuration."""
+
+    __tablename__ = "org_settings"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    org_name: Mapped[str] = mapped_column(String(80), default="NOTAMSYS")
+    org_subtitle: Mapped[str] = mapped_column(String(120), default="Accra NOF")
+    description: Mapped[str | None] = mapped_column(Text)
+    logo_object_key: Mapped[str | None] = mapped_column(String(255))
+    logo_media_type: Mapped[str | None] = mapped_column(String(100))
+    updated_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow
+    )
+
+
 class AipDataset(Base):
     """A versioned batch of AIP-derived reference data (FIRs, aerodromes,
     runways). Exactly one dataset is `active` at a time -- see

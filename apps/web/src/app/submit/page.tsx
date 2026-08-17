@@ -2,11 +2,13 @@
 import { ArrowLeft, CheckCircle2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRef, useState } from "react";
+import { useBranding } from "@/components/branding-context";
 import { createPublicRequest, uploadPublicAttachment } from "@/lib/api";
 
 const ACTION_LABEL: Record<string, string> = { replace: "Replace active NOTAM", cancel: "Cancel active NOTAM" };
 
 export default function SubmitPage() {
+  const branding = useBranding();
   const [done, setDone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export default function SubmitPage() {
     }
   };
 
-  return <div className="public-shell"><header><Link href="/"><span className="brand-mark">N</span><strong>NOTAMSYS</strong></Link><span>GCAA Aeronautical Information Service</span></header><main>{done ? <section className="public-card confirmation"><CheckCircle2/><p className="eyebrow">Submission recorded</p><h1>Request received securely</h1><p>Reference <strong>{referenceNumber}</strong> has been issued. AIS will acknowledge receipt and may request clarification before publication.</p><Link className="button primary" href="/">Return to NOTAMSYS</Link></section> : <section className="public-card"><Link className="back-link" href="/"><ArrowLeft/>Back to operations</Link><p className="eyebrow">Authorized originator service</p><h1>Submit a NOTAM request</h1><p className="lead">Submission does not constitute publication. One subject and one condition per request.</p><div className="public-steps"><span className="active">1</span><strong>Request details</strong><i/><span>2</span><strong>Verify identity</strong><i/><span>3</span><strong>Submit</strong></div><form className="public-form" onSubmit={submit}>
+  return <div className="public-shell"><header><Link href="/">{branding.logo_url ? <img className="brand-mark" src={branding.logo_url} alt={branding.org_name}/> : <span className="brand-mark">{branding.org_name.charAt(0).toUpperCase()}</span>}<strong>{branding.org_name}</strong></Link><span>GCAA Aeronautical Information Service</span></header><main>{done ? <section className="public-card confirmation"><CheckCircle2/><p className="eyebrow">Submission recorded</p><h1>Request received securely</h1><p>Reference <strong>{referenceNumber}</strong> has been issued. AIS will acknowledge receipt and may request clarification before publication.</p><Link className="button primary" href="/">Return to {branding.org_name}</Link></section> : <section className="public-card"><Link className="back-link" href="/"><ArrowLeft/>Back to operations</Link><p className="eyebrow">Authorized originator service</p><h1>Submit a NOTAM request</h1><p className="lead">Submission does not constitute publication. One subject and one condition per request.</p><div className="public-steps"><span className="active">1</span><strong>Request details</strong><i/><span>2</span><strong>Verify identity</strong><i/><span>3</span><strong>Submit</strong></div><form className="public-form" onSubmit={submit}>
     <label>Organization / your name<input required placeholder="Authorized organization or your name" value={originatorName} onChange={(event) => setOriginatorName(event.target.value)}/></label>
     <label>Contact email (optional)<input type="email" placeholder="ops@example.com" value={originatorEmail} onChange={(event) => setOriginatorEmail(event.target.value)}/></label>
     <label>Requested series<select value={requestedSeries} onChange={(event) => setRequestedSeries(event.target.value as "" | "A" | "B")}><option value="">Let AIS determine</option><option value="A">Series A · International</option><option value="B">Series B · National</option></select></label>
@@ -70,5 +72,5 @@ export default function SubmitPage() {
     <div className="public-security wide"><ShieldCheck/><span><strong>Controlled submission</strong>Your identity, authority, source evidence and every amendment are retained in the audit record.</span></div>
     {error ? <p className="form-error wide">{error}</p> : null}
     <button className="button primary wide" type="submit" disabled={busy}>{busy ? "Submitting…" : "Continue to identity verification"}</button>
-  </form></section>}</main><footer>NOTAMSYS · Built by AkroSystems · Times shown in UTC</footer></div>;
+  </form></section>}</main><footer>{branding.org_name} · Built by AkroSystems · Times shown in UTC</footer></div>;
 }

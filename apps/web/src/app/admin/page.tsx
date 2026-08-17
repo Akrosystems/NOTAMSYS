@@ -1,7 +1,8 @@
 import { ArrowRight, PlugZap, ShieldAlert, UserCog } from "lucide-react";
 import Link from "next/link";
 import { AdminConsole } from "@/components/admin-console";
-import { getSystemStatus, listUsers } from "@/lib/api";
+import { BrandingConsole } from "@/components/branding-console";
+import { getBranding, getSystemStatus, listUsers } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ const CONFIG_ROWS: { label: string; key: "environment" | "publication_mode" | "a
 
 export default async function AdminPage() {
   try {
-    const [users, status] = await Promise.all([listUsers(), getSystemStatus()]);
+    const [users, status, branding] = await Promise.all([listUsers(), getSystemStatus(), getBranding()]);
     return (
       <div className="page-container">
         <section className="module-hero">
@@ -26,14 +27,16 @@ export default async function AdminPage() {
             <p className="eyebrow">Superadmin</p>
             <h1>Admin console</h1>
             <p>
-              User management, ruleset activation and delivery retry are the real, non-fabricated
-              admin control surface. There is no &quot;connect to AFTN&quot; button because no such
-              live circuit is configured yet -- channel adapters and every setting below are
-              controlled by environment variables on the API server, changed at deploy time and
-              taking effect on restart, not from this screen.
+              User management, ruleset activation, delivery retry and platform branding are the
+              real, non-fabricated admin control surface. There is no &quot;connect to AFTN&quot;
+              button because no such live circuit is configured yet -- channel adapters and the
+              configuration below are controlled by environment variables on the API server,
+              changed at deploy time and taking effect on restart. Branding, further down, is the
+              exception: it&apos;s genuinely live and editable from this screen.
             </p>
           </div>
         </section>
+        <BrandingConsole initialBranding={branding} />
         <section className="panel admin-config-panel">
           <div className="panel-heading">
             <div><h2>Live configuration</h2><p>Read from the running API right now -- not hardcoded here</p></div>

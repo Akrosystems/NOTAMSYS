@@ -42,6 +42,19 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class BrandingRead(BaseModel):
+    org_name: str
+    org_subtitle: str
+    description: str | None
+    logo_url: str | None
+
+
+class BrandingUpdate(BaseModel):
+    org_name: str | None = Field(default=None, min_length=1, max_length=80)
+    org_subtitle: str | None = Field(default=None, max_length=120)
+    description: str | None = Field(default=None, max_length=2000)
+
+
 class TokenPair(BaseModel):
     access_token: str
     refresh_token: str

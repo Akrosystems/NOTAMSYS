@@ -21,6 +21,7 @@ from app.models import (
     Fir,
     Notam,
     NotamRequest,
+    OrgSettings,
     PublicationDelivery,
     RequestSource,
     Role,
@@ -32,6 +33,8 @@ from app.schemas import (
     AerodromeRead,
     AipDatasetRead,
     AttachmentRead,
+    BrandingRead,
+    BrandingUpdate,
     DashboardSummary,
     ExtractedFieldRead,
     ExtractionRunRead,
@@ -963,3 +966,133 @@ async def update_user(
     await session.commit()
     await session.refresh(target)
     return target
+
+
+ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp", "image/svg+xml"}
+LOGO_OBJECT_KEY = "branding/logo"
+
+
+async def _get_org_settings(session: AsyncSession) -> OrgSettings:
+    org = await session.scalar(select(OrgSettings).limit(1))
+    if org is None:
+        org = OrgSettings()
+        session.add(org)
+        await session.flush()
+    return org
+
+
+def _branding_read(org: OrgSettings) -> BrandingRead:
+    # Deliberately a path relative to this API, not a frontend-facing URL --
+    # the browser never talks to this backend directly (see apps/web's BFF
+    # architecture), so the frontend rewrites this into its own
+    # /api/branding/logo proxy path before it ever reaches an <img> tag.
+    logo_url = (
+        f"/branding/logo?v={int(org.updated_at.timestamp())}"
+        if org.logo_object_key
+        else None
+    )
+    return BrandingRead(
+        org_name=org.org_name,
+        org_subtitle=org.org_subtitle,
+        description=org.description,
+        logo_url=logo_url,
+    )
+
+
+@router.get("/branding", response_model=BrandingRead, tags=["system"])
+async def get_branding(session: Session) -> BrandingRead:
+    """Unauthenticated by design -- renders on /login and the public
+    /submit page before any session exists."""
+    org = await _get_org_settings(session)
+    await session.commit()
+    return _branding_read(org)
+
+
+@router.get("/branding/logo", tags=["system"])
+async def get_branding_logo(session: Session) -> Response:
+    org = await _get_org_settings(session)
+    await session.commit()
+    if not org.logo_object_key:
+        raise HTTPException(status_code=404, detail="No logo uploaded")
+    try:
+        content = await storage.get(org.logo_object_key)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Logo object missing from storage") from exc
+    return Response(content=content, media_type=org.logo_media_type or "image/png")
+
+
+@router.patch("/admin/branding", response_model=BrandingRead, tags=["admin"])
+async def update_branding(
+    payload: BrandingUpdate,
+    session: Session,
+    admin: Annotated[User, Depends(require_roles(Role.SYSTEM_ADMIN))],
+) -> BrandingRead:
+    org = await _get_org_settings(session)
+    changes: dict[str, object] = {}
+    if payload.org_name is not None and payload.org_name != org.org_name:
+        changes["org_name"] = {"from": org.org_name, "to": payload.org_name}
+        org.org_name = payload.org_name
+    if payload.org_subtitle is not None and payload.org_subtitle != org.org_subtitle:
+        changes["org_subtitle"] = {"from": org.org_subtitle, "to": payload.org_subtitle}
+        org.org_subtitle = payload.org_subtitle
+    if payload.description is not None and payload.description != org.description:
+        changes["description"] = True
+        org.description = payload.description
+    if changes:
+        org.updated_by_id = admin.id
+        await audit(session, "org_settings", org.id, "branding_updated", admin.id, payload=changes)
+    await session.commit()
+    await session.refresh(org)
+    return _branding_read(org)
+
+
+@router.post("/admin/branding/logo", response_model=BrandingRead, status_code=201, tags=["admin"])
+async def upload_branding_logo(
+    session: Session,
+    admin: Annotated[User, Depends(require_roles(Role.SYSTEM_ADMIN))],
+    file: UploadFile = File(...),
+) -> BrandingRead:
+    if file.content_type not in ALLOWED_LOGO_TYPES:
+        raise HTTPException(
+            status_code=415, detail="Logo must be PNG, JPEG, WEBP or SVG"
+        )
+    content = await file.read()
+    try:
+        stored = await storage.put_named(LOGO_OBJECT_KEY, content)
+    except ValueError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
+    org = await _get_org_settings(session)
+    org.logo_object_key = stored.key
+    org.logo_media_type = file.content_type
+    org.updated_by_id = admin.id
+    await audit(
+        session,
+        "org_settings",
+        org.id,
+        "branding_logo_updated",
+        admin.id,
+        payload={"sha256": stored.sha256, "media_type": file.content_type},
+    )
+    await session.commit()
+    await session.refresh(org)
+    return _branding_read(org)
+
+
+@router.delete("/admin/branding/logo", response_model=BrandingRead, tags=["admin"])
+async def remove_branding_logo(
+    session: Session,
+    admin: Annotated[User, Depends(require_roles(Role.SYSTEM_ADMIN))],
+) -> BrandingRead:
+    """Clears the logo reference, reverting the UI to the text-initial mark.
+    Doesn't delete the stored object itself -- consistent with evidence
+    storage elsewhere in this app never deleting on a mere reference
+    change, and cheap since put_named() overwrites in place anyway."""
+    org = await _get_org_settings(session)
+    if org.logo_object_key:
+        org.logo_object_key = None
+        org.logo_media_type = None
+        org.updated_by_id = admin.id
+        await audit(session, "org_settings", org.id, "branding_logo_removed", admin.id)
+    await session.commit()
+    await session.refresh(org)
+    return _branding_read(org)

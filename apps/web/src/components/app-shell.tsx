@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getDashboard, getRuleVersions, getSystemStatus } from "@/lib/api";
 import type { RuleVersionSummary, SystemStatus } from "@/lib/types";
+import { useBranding } from "./branding-context";
 import { DemoBanner } from "./demo-banner";
 import { Topbar } from "./topbar";
 import { useCurrentUser } from "./user-context";
@@ -29,6 +30,7 @@ const governance = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const user = useCurrentUser();
+  const branding = useBranding();
   const [open, setOpen] = useState(false);
   const [counts, setCounts] = useState<{ requests_in_queue: number; awaiting_specialist: number } | null>(null);
   const [status, setStatus] = useState<SystemStatus | null>(null);
@@ -65,8 +67,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="app-shell">
       <aside className={`sidebar ${open ? "is-open" : ""}`}>
         <div className="brand-row">
-          <div className="brand-mark">N</div>
-          <div><strong>NOTAMSYS</strong><span>Accra NOF</span></div>
+          {branding.logo_url ? <img className="brand-mark brand-logo" src={branding.logo_url} alt={branding.org_name}/> : <div className="brand-mark">{branding.org_name.charAt(0).toUpperCase()}</div>}
+          <div><strong>{branding.org_name}</strong><span>{branding.org_subtitle}</span></div>
           <button className="icon-button sidebar-close" onClick={() => setOpen(false)} aria-label="Close menu"><X /></button>
         </div>
         <nav>

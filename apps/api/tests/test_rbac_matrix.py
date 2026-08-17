@@ -41,6 +41,7 @@ ENDPOINT_ROLE_MATRIX: list[tuple[str, str, set[Role], dict[str, object] | None]]
     ("GET", "/admin/users", {Role.SYSTEM_ADMIN}, None),
     ("POST", "/admin/users", {Role.SYSTEM_ADMIN}, {"email": "new@example.com", "full_name": "New User", "role": "ais_officer", "password": "SafePassword!26"}),
     ("PATCH", "/admin/users/{id}", {Role.SYSTEM_ADMIN}, {"is_active": False}),
+    ("PATCH", "/admin/branding", {Role.SYSTEM_ADMIN}, {"org_name": "Test Org"}),
 ]
 
 

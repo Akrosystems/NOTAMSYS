@@ -27,6 +27,19 @@ export interface UserUpdateInput {
   is_active?: boolean;
 }
 
+export interface Branding {
+  org_name: string;
+  org_subtitle: string;
+  description?: string | null;
+  logo_url?: string | null;
+}
+
+export interface BrandingUpdateInput {
+  org_name?: string;
+  org_subtitle?: string;
+  description?: string;
+}
+
 export interface NotamRequest {
   id: string;
   request_number: string;

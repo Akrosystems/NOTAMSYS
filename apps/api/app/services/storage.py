@@ -23,6 +23,14 @@ class StorageBackend(Protocol):
 
     async def get(self, key: str) -> bytes: ...
 
+    async def put_named(self, key: str, content: bytes) -> StoredObject:
+        """Write to a fixed, caller-chosen key, overwriting any existing
+        object there. For mutable singletons like the org branding logo --
+        deliberately not content-addressed like put(), since the whole
+        point is that re-uploading replaces the previous one at a stable
+        key/URL rather than accumulating immutable evidence."""
+        ...
+
 
 def _content_addressed_key(request_id: uuid.UUID, filename: str, content: bytes) -> tuple[str, str]:
     digest = hashlib.sha256(content).hexdigest()
@@ -51,6 +59,15 @@ class EvidenceStorage:
         if not target.exists():
             raise FileNotFoundError(key)
         return target.read_bytes()
+
+    async def put_named(self, key: str, content: bytes) -> StoredObject:
+        if len(content) > settings.max_upload_bytes:
+            raise ValueError("Upload exceeds configured limit")
+        digest = hashlib.sha256(content).hexdigest()
+        target = self.root / key
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+        return StoredObject(key=key, size=len(content), sha256=digest)
 
 
 class MinioStorage:
@@ -94,6 +111,13 @@ class MinioStorage:
         finally:
             response.close()
             response.release_conn()
+
+    async def put_named(self, key: str, content: bytes) -> StoredObject:
+        if len(content) > settings.max_upload_bytes:
+            raise ValueError("Upload exceeds configured limit")
+        digest = hashlib.sha256(content).hexdigest()
+        self._client.put_object(self._bucket, key, io.BytesIO(content), length=len(content))
+        return StoredObject(key=key, size=len(content), sha256=digest)
 
 
 def _build_storage() -> StorageBackend:

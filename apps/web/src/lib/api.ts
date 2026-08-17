@@ -3,6 +3,8 @@ import type {
   AdminUser,
   AipDatasetSummary,
   AuditEventEntry,
+  Branding,
+  BrandingUpdateInput,
   DashboardSummary,
   DraftPayload,
   ExtractionRun,
@@ -193,6 +195,54 @@ export async function acceptExtractedField(fieldId: string, value?: string): Pro
 export async function getCurrentUser(): Promise<User | null> {
   try { return await request<User>("/auth/me"); }
   catch { return null; }
+}
+
+const DEFAULT_BRANDING: Branding = { org_name: "NOTAMSYS", org_subtitle: "Accra NOF", description: null, logo_url: null };
+
+// The backend returns logo_url as a path relative to itself (e.g.
+// "/branding/logo?v=123") since it doesn't know the frontend's proxy
+// mount point -- every function that can hand back a Branding object
+// (not just the initial fetch) must rewrite it the same way, or the
+// admin console's own post-upload preview points at a URL that doesn't
+// exist on this origin.
+function rewriteLogoUrl(branding: Branding): Branding {
+  if (!branding.logo_url) return branding;
+  const version = branding.logo_url.split("v=")[1];
+  return { ...branding, logo_url: `/api/branding/logo?v=${version}` };
+}
+
+// Server-only in practice (fetched once in layout.tsx and threaded through
+// BrandingProvider) -- purely cosmetic, so unlike demoFallback() above this
+// deliberately falls back to a hardcoded default rather than throwing when
+// the backend is unreachable. Showing the default brand identity if the
+// API is briefly down isn't fabricating operational data the way a fake
+// NOTAM would be.
+export async function getBranding(): Promise<Branding> {
+  try {
+    return rewriteLogoUrl(await request<Branding>("/branding"));
+  } catch {
+    return DEFAULT_BRANDING;
+  }
+}
+
+export async function updateBranding(payload: BrandingUpdateInput): Promise<Branding> {
+  return rewriteLogoUrl(await request<Branding>("/admin/branding", { method: "PATCH", body: JSON.stringify(payload) }));
+}
+
+export async function uploadBrandingLogo(file: File): Promise<Branding> {
+  const auth = await authHeader();
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${API_URL}/admin/branding/logo`, { method: "POST", headers: auth, body, cache: "no-store" });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(typeof detail.detail === "string" ? detail.detail : "Logo upload failed");
+  }
+  return rewriteLogoUrl(await response.json());
+}
+
+export async function removeBrandingLogo(): Promise<Branding> {
+  return rewriteLogoUrl(await request<Branding>("/admin/branding/logo", { method: "DELETE" }));
 }
 
 export async function getRequestNotam(requestId: string): Promise<NotamDraftResult | null> {

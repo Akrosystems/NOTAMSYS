@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
 import { AppShell } from "@/components/app-shell";
+import { BrandingProvider } from "@/components/branding-context";
 import { UserProvider } from "@/components/user-context";
-import { getCurrentUser } from "@/lib/api";
+import { getBranding, getCurrentUser } from "@/lib/api";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const user = await getCurrentUser();
+  const [user, branding] = await Promise.all([getCurrentUser(), getBranding()]);
   return (
     // suppressHydrationWarning is required here, not optional: the inline
     // script below sets data-theme from localStorage before React
@@ -38,7 +39,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           }}
         />
       </head>
-      <body><UserProvider user={user}><AppShell>{children}</AppShell></UserProvider></body>
+      <body><BrandingProvider branding={branding}><UserProvider user={user}><AppShell>{children}</AppShell></UserProvider></BrandingProvider></body>
     </html>
   );
 }
