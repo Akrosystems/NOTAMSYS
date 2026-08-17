@@ -1,0 +1,41 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# JavaScript
+node_modules/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+pnpm-lock.yaml
+.turbo/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+htmlcov/
+
+# Runtime data -- note this is deliberately anchored to apps/api/data/, the
+# generated sqlite db + evidence upload directory. An unanchored "data/"
+# here would also match apps/api/app/data/, which is the reviewable,
+# version-controlled NSC ruleset + AIP seed dataset, not runtime output.
+/apps/api/data/
+uploads/
+*.log
+
+# Controlled/copyrighted source manuals and office photos -- not ours to
+# redistribute publicly. See docs/reference/README.md.
+docs/reference/*.pdf
+docs/reference/office-photos/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

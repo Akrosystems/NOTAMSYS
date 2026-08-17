@@ -1,0 +1,132 @@
+"use client";
+
+import { Bell, ChevronDown, Clock3, LogOut, Menu, Moon, Sun } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { getAuditEvents } from "@/lib/api";
+import type { AuditEventEntry } from "@/lib/types";
+import { useCurrentUser } from "./user-context";
+
+const labels: Record<string, string> = {
+  "/": "Operations", "/requests": "Request inbox", "/requests/new": "Prepare NOTAM",
+  "/review": "Specialist review", "/published": "Published", "/quality": "Quality & audit",
+  "/integrations": "Integrations", "/rules": "Rules library", "/admin": "Admin console"
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  originator: "Originator", ais_officer: "AIS Officer", ais_specialist: "AIS Specialist",
+  nof_manager: "NOF Manager", qms_auditor: "QMS Auditor", system_admin: "System Administrator"
+};
+
+type Theme = "light" | "dark";
+
+function currentTheme(): Theme {
+  if (typeof document === "undefined") return "light";
+  const stored = document.documentElement.getAttribute("data-theme");
+  if (stored === "dark" || stored === "light") return stored;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState<Theme>("light");
+  useEffect(() => setTheme(currentTheme()), []);
+  const toggle = () => {
+    const next: Theme = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("notamsys-theme", next); } catch { /* private browsing */ }
+  };
+  return (
+    <button className="icon-button theme-toggle" onClick={toggle} aria-label="Toggle dark mode">
+      {theme === "dark" ? <Sun /> : <Moon />}
+    </button>
+  );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
+}
+
+function ActivityBell() {
+  const [open, setOpen] = useState(false);
+  const [events, setEvents] = useState<AuditEventEntry[] | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && events === null) getAuditEvents({ limit: 5 }).then(setEvents).catch(() => setEvents([]));
+  };
+  return (
+    <div className="activity-bell" ref={ref}>
+      <button className="icon-button alert-button" aria-label="Recent activity" onClick={toggle}><Bell/>{events && events.length > 0 ? <i/> : null}</button>
+      {open ? <div className="activity-dropdown">
+        <strong>Recent activity</strong>
+        {events === null ? <p>Loading…</p> : null}
+        {events && events.length === 0 ? <p>No recent activity.</p> : null}
+        {events?.map((event) => <div className="activity-dropdown-row" key={event.id}>
+          <span>{event.action.replace(/_/g, " ")}</span>
+          <small>{event.actor_name} · {new Date(event.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</small>
+        </div>)}
+      </div> : null}
+    </div>
+  );
+}
+
+function UserMenu() {
+  const user = useCurrentUser();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => { if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  };
+  if (!user) return null;
+  return (
+    <div className="user-menu" ref={ref}>
+      <button className="user-button" onClick={() => setOpen((value) => !value)}>
+        <span className="avatar">{initials(user.full_name)}</span>
+        <span><strong>{user.full_name}</strong><small>{ROLE_LABEL[user.role] ?? user.role}</small></span>
+        <ChevronDown/>
+      </button>
+      {open ? <div className="user-dropdown">
+        <div className="user-dropdown-header"><strong>{user.full_name}</strong><small>{user.email}</small></div>
+        <button onClick={logout}><LogOut/>Log out</button>
+      </div> : null}
+    </div>
+  );
+}
+
+export function Topbar({ onMenu }: { onMenu: () => void }) {
+  const path = usePathname();
+  const [clock, setClock] = useState("--:--:--");
+  useEffect(() => {
+    const tick = () => setClock(new Date().toUTCString().slice(17, 25));
+    tick(); const timer = window.setInterval(tick, 1000); return () => clearInterval(timer);
+  }, []);
+  const label = path.startsWith("/requests/") ? "NOTAM preparation" : labels[path] ?? "NOTAMSYS";
+  return (
+    <header className="topbar">
+      <button className="icon-button mobile-menu" onClick={onMenu} aria-label="Open menu"><Menu /></button>
+      <div className="breadcrumbs"><span>GCAA / Aeronautical Information Service</span><strong>{label}</strong></div>
+      <div className="topbar-actions">
+        <div className="utc-clock"><Clock3/><span><small>UTC</small><strong>{clock}</strong></span></div>
+        <ThemeToggle />
+        <ActivityBell />
+        <UserMenu />
+      </div>
+    </header>
+  );
+}

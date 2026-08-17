@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 11.19.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile=false
+      - run: pnpm --filter @notamsys/web lint
+      - run: pnpm --filter @notamsys/web test
+      - run: pnpm --filter @notamsys/web build
+
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e ".[dev]"
+        working-directory: apps/api
+      - run: ruff check .
+        working-directory: apps/api
+      - run: pytest --cov=app
+        working-directory: apps/api

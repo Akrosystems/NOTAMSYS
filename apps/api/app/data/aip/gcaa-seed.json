@@ -1,0 +1,27 @@
+{
+  "version": "gcaa-seed-2026.1",
+  "source": "seed",
+  "effective_date": null,
+  "notes": "Interim placeholder dataset. The real GCAA AIP is not accessible in this environment (SharePoint-restricted, per project record) -- every fact below is limited to what the pre-existing NOTAMSYS seed data (app/seed.py sample NotamRequest rows) already implied, with no coordinates, elevations or IATA codes invented. Replace with a real AIP/eAIP-sourced dataset before this is used operationally; see services/aip/provider.py for the extension point.",
+  "firs": [
+    {
+      "icao_code": "DGAC",
+      "name": "Accra FIR",
+      "provenance": "Existing NOTAMSYS default (Notam.fir column default and sample seed requests); not independently verified against the GCAA AIP."
+    }
+  ],
+  "aerodromes": [
+    {
+      "icao_code": "DGAA",
+      "name": "Kotoka International Airport, Accra",
+      "fir_code": "DGAC",
+      "provenance": "Existing NOTAMSYS sample seed data (originator 'Ghana Airports Company', location DGAA). Coordinates/elevation deliberately left null -- not available without the GCAA AIP."
+    },
+    {
+      "icao_code": "DGLE",
+      "name": "Tamale Airport",
+      "fir_code": "DGAC",
+      "provenance": "Existing NOTAMSYS sample seed data (originator 'Tamale Airport', location DGLE). Coordinates/elevation deliberately left null -- not available without the GCAA AIP."
+    }
+  ]
+}
