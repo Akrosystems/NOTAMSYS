@@ -284,7 +284,11 @@ class RuleVersion(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     version: Mapped[str] = mapped_column(String(40), unique=True)
     source_document: Mapped[str] = mapped_column(String(200))
-    source_revision: Mapped[str] = mapped_column(String(80))
+    # Text, not a short varchar: in practice this holds a full provenance
+    # note (what was transcribed/verified and when), not a short tag like
+    # "Rev 3" -- SQLite never enforces VARCHAR(80) so this went unnoticed
+    # until run against real Postgres.
+    source_revision: Mapped[str] = mapped_column(Text)
     checksum: Mapped[str] = mapped_column(String(64))
     rules: Mapped[dict[str, Any]] = mapped_column(JSON)
     verified_rule_count: Mapped[int] = mapped_column(Integer, default=0)
