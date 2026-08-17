@@ -70,22 +70,50 @@ Seed accounts use the development password `Notamsys!2026` — **change these be
 
 ## Local development
 
+Running "the full application" means two servers up at once: the FastAPI backend (`:8000`) and the Next.js frontend (`:3000`), both pointed at the same Postgres database. Neither one alone is "the app" -- the frontend has nothing to talk to without the backend, and the backend has no UI of its own beyond `/docs`.
+
+### Prerequisites
+
+- Node.js 22+ and pnpm. `corepack enable` should provide the pinned version automatically, but needs write access to the Node install directory -- if it fails with an `EPERM`/permissions error (common without admin rights on Windows), use `npx pnpm@11.19.0 <command>` in place of `pnpm <command>` everywhere below instead
+- Python 3.12
+- A reachable PostgreSQL database -- either `docker compose up -d postgres redis minio` for just the infra containers (matches the credentials already in `.env.example`), or your own local Postgres install with a `notamsys` role/database created and `NOTAMSYS_DATABASE_URL` in `.env` updated to match its actual credentials
+
+### One-line setup (Windows)
+
 ```powershell
 ./scripts/dev.ps1
 ```
 
-Or run each stack independently:
+Creates `.env` if missing, starts the Postgres/Redis/MinIO containers, installs dependencies, runs migrations and seeds the database, then opens the API in its own PowerShell window and runs the web dev server in the current one. Requires Docker for the infra containers; if you're using your own Postgres instead, comment out the `docker compose` line and make sure `.env`'s `NOTAMSYS_DATABASE_URL` already points at it.
 
-```powershell
-pnpm install
-pnpm --filter @notamsys/web dev
+### Manual setup (two terminals, any OS)
 
-cd apps/api
-python -m pip install -e ".[dev]"
-alembic upgrade head
-python -m app.seed
-uvicorn app.main:app --reload
-```
+1. Copy `.env.example` to `.env` at the repo root, and make sure `NOTAMSYS_DATABASE_URL` points at a Postgres database that actually exists and is reachable -- the default assumes the Docker Compose Postgres service; if you're running your own instance, replace the user/password/host/port/database name to match what you actually created.
+
+2. **Terminal 1 -- API:**
+
+   ```powershell
+   cd apps/api
+   python -m venv .venv
+   .venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
+   pip install -e ".[dev]"
+   alembic upgrade head
+   python -m app.seed
+   uvicorn app.main:app --reload
+   ```
+
+   Leave this running. `alembic upgrade head` creates every table; `python -m app.seed` is idempotent and does nothing on a database that already has users. If this connects to the wrong (or no) database, you'll get a connection error immediately, before the server ever starts.
+
+3. **Terminal 2 -- web:**
+
+   ```powershell
+   pnpm install
+   pnpm --filter @notamsys/web dev
+   ```
+
+4. Open `http://localhost:3000` and sign in with one of the [seed accounts](#quick-start-with-containers) above. API docs are at `http://localhost:8000/docs`.
+
+Both terminals need to keep running for the app to work end to end -- closing either one breaks the other half.
 
 ## Tests
 
