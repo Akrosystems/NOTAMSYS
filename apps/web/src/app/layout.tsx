@@ -19,7 +19,15 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const user = await getCurrentUser();
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    // suppressHydrationWarning is required here, not optional: the inline
+    // script below sets data-theme from localStorage before React
+    // hydrates, so the server-rendered <html> (which has no access to
+    // localStorage) and the live DOM legitimately differ on this one
+    // attribute by design. Without this, React logs a hydration-mismatch
+    // error on every load even though nothing is actually broken -- see
+    // https://react.dev/link/hydration-mismatch and Next's documented
+    // dark-mode-without-flash pattern.
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         {/* Applies the stored theme before first paint so toggling
             light/dark never flashes the wrong palette on reload. */}
