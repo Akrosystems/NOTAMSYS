@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +37,21 @@ class Settings(BaseSettings):
     # this seeded service account rather than requiring created_by_id to be
     # nullable across the whole NotamRequest model for one intake path.
     public_portal_email: str = "portal@notamsys.app"
+
+    @field_validator("database_url")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        # Managed Postgres providers (Render, Heroku-style, Railway) hand out
+        # a plain postgres://... or postgresql://... connection string --
+        # this app's async SQLAlchemy engine needs the +asyncpg dialect
+        # explicitly, or it falls back to a sync driver that isn't even
+        # installed here. Rewriting once at startup means every deployment
+        # target's DATABASE_URL just works without a manual find-replace.
+        if value.startswith("postgres://"):
+            return "postgresql+asyncpg://" + value.removeprefix("postgres://")
+        if value.startswith("postgresql://"):
+            return "postgresql+asyncpg://" + value.removeprefix("postgresql://")
+        return value
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -1,0 +1,77 @@
+# Render Blueprint -- provisions the full stack (API, web, Postgres) from
+# one file. See docs/DEPLOYMENT.md for the one-time manual setup this
+# still needs (connecting the repo, filling in the two cross-service URLs,
+# wiring the CI-gated deploy hooks).
+#
+# Deliberately NOT included: a Celery worker or Redis service. Nothing in
+# this codebase currently dispatches a Celery task -- app/worker.py's
+# tasks exist but every call site invokes the same underlying function
+# inline instead (see the docstrings there). Deploying an idle worker
+# with nothing feeding it would just be paying for infrastructure that
+# does nothing, which is exactly the kind of unearned claim this project
+# tries not to make elsewhere. Add both back here if that changes.
+databases:
+  - name: notamsys-db
+    databaseName: notamsys
+    plan: free
+    region: oregon
+
+services:
+  - type: web
+    name: notamsys-api
+    runtime: docker
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: apps/api
+    dockerCommand: "sh -c 'alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000'"
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: false
+    disk:
+      name: notamsys-api-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: NOTAMSYS_ENVIRONMENT
+        value: production
+      - key: NOTAMSYS_SECRET_KEY
+        generateValue: true
+      - key: NOTAMSYS_DATABASE_URL
+        fromDatabase:
+          name: notamsys-db
+          property: connectionString
+      # Filled in by hand after the web service below exists and you know
+      # its actual .onrender.com URL -- see docs/DEPLOYMENT.md. Predicting
+      # it here isn't safe: the name in this file is only the *requested*
+      # Render subdomain, and Render silently suffixes it if that name is
+      # already taken by someone else's service.
+      - key: NOTAMSYS_CORS_ORIGINS
+        sync: false
+      - key: NOTAMSYS_STORAGE_BACKEND
+        value: local
+      - key: NOTAMSYS_OCR_ENGINE
+        value: disabled
+      - key: NOTAMSYS_EXTRACTION_ENABLED
+        value: "false"
+      - key: NOTAMSYS_PUBLICATION_MODE
+        value: simulated_sync
+      - key: NOTAMSYS_PUBLIC_INTAKE_ENABLED
+        value: "true"
+      - key: NOTAMSYS_AIP_PROVIDER
+        value: seed
+
+  - type: web
+    name: notamsys-web
+    runtime: docker
+    dockerfilePath: apps/web/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    autoDeploy: false
+    envVars:
+      # Same reasoning as NOTAMSYS_CORS_ORIGINS above -- fill in with the
+      # notamsys-api service's actual URL + /api/v1 once it exists.
+      - key: INTERNAL_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_API_URL
+        sync: false

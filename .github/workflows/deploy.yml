@@ -1,0 +1,27 @@
+name: Deploy to Render
+
+# Fires only after the CI workflow completes on main -- deploys are gated
+# on tests actually passing, not on every push regardless of outcome.
+# Render's own auto-deploy is disabled per-service in render.yaml
+# (autoDeploy: false) specifically so this is the only path that triggers
+# one. See docs/DEPLOYMENT.md for the one-time setup this needs
+# (RENDER_API_DEPLOY_HOOK / RENDER_WEB_DEPLOY_HOOK repo secrets).
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy - API
+        run: curl -fsS -X POST "$RENDER_API_DEPLOY_HOOK"
+        env:
+          RENDER_API_DEPLOY_HOOK: ${{ secrets.RENDER_API_DEPLOY_HOOK }}
+      - name: Trigger Render deploy - Web
+        run: curl -fsS -X POST "$RENDER_WEB_DEPLOY_HOOK"
+        env:
+          RENDER_WEB_DEPLOY_HOOK: ${{ secrets.RENDER_WEB_DEPLOY_HOOK }}

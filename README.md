@@ -115,6 +115,10 @@ Creates `.env` if missing, starts the Postgres/Redis/MinIO containers, installs 
 
 Both terminals need to keep running for the app to work end to end -- closing either one breaks the other half.
 
+## Deployment
+
+`render.yaml` at the repo root is a [Render Blueprint](https://render.com/docs/blueprint-spec) that provisions the API, web app and a managed Postgres database together, with deploys gated on CI passing via `.github/workflows/deploy.yml`. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the one-time setup (connecting the repo, filling in two cross-service URLs Render can't predict, wiring the deploy-hook secrets) and what's deliberately left out (no idle Celery worker/Redis, since nothing in this codebase queues a task to one yet).
+
 ## Tests
 
 ```powershell
