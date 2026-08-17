@@ -941,6 +941,25 @@ td small {
   color: #255f96;
   font-weight: 700;
 }
+.rules-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.rules-pagination-controls .button {
+  padding: 0 10px;
+  min-height: 28px;
+  font-size: 8px;
+  gap: 4px;
+}
+.rules-pagination-controls .button svg {
+  width: 11px;
+}
+.rules-pagination-controls .button.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: default;
+}
 .activity-panel .panel-heading > svg {
   color: #75838e;
   width: 16px;

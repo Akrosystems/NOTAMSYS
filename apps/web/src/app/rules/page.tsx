@@ -1,4 +1,5 @@
-import { BookOpen, Search } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import Link from "next/link";
 import { getRuleVersions, getRulesCatalog } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -8,20 +9,28 @@ const VERIFICATION_LABEL: Record<string, string> = {
   HAND_CURATED: "Hand-curated",
   TRANSCRIBED_UNVERIFIED: "Unverified"
 };
-const MAX_ROWS = 150;
+// A page size, not a silent cap: the full catalog is already fetched in
+// one request below (it's ~400KB of JSON, not worth re-fetching per page),
+// so this only controls how many rows render per page -- every row stays
+// reachable via Previous/Next, unlike the old fixed 150-row slice that
+// just discarded anything past it with no way to see the rest.
+const PAGE_SIZE = 150;
 
 export default async function RulesPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, page: pageParam } = await searchParams;
   const [versions, catalog] = await Promise.all([
     getRuleVersions(),
     getRulesCatalog(q ? { search: q } : undefined)
   ]);
   const active = versions.find((version) => version.active) ?? versions[0];
-  const rows = catalog.slice(0, MAX_ROWS);
+  const totalPages = Math.max(1, Math.ceil(catalog.length / PAGE_SIZE));
+  const page = Math.min(totalPages, Math.max(1, Number(pageParam) || 1));
+  const rows = catalog.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const pageLink = (target: number) => `/rules?${new URLSearchParams({ ...(q ? { q } : {}), page: String(target) })}`;
 
   return (
     <div className="page-container">
@@ -92,9 +101,16 @@ export default async function RulesPage({
             </tbody>
           </table>
         </div>
-        {catalog.length > rows.length ? (
-          <div className="panel-footer">
-            <span>Showing {rows.length} of {catalog.length} matching rules — refine your search to narrow further.</span>
+        {catalog.length > 0 ? (
+          <div className="panel-footer rules-pagination">
+            <span>Showing {(page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + rows.length} of {catalog.length} {q ? "matching" : "total"} rules</span>
+            {totalPages > 1 ? (
+              <div className="rules-pagination-controls">
+                {page > 1 ? <Link className="button secondary" href={pageLink(page - 1)}><ChevronLeft/>Previous</Link> : <span className="button secondary disabled"><ChevronLeft/>Previous</span>}
+                <span>Page {page} of {totalPages}</span>
+                {page < totalPages ? <Link className="button secondary" href={pageLink(page + 1)}>Next<ChevronRight/></Link> : <span className="button secondary disabled">Next<ChevronRight/></span>}
+              </div>
+            ) : null}
           </div>
         ) : null}
       </section>
