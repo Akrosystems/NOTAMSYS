@@ -4,7 +4,7 @@
 
 ## What's in the Blueprint (and what isn't)
 
-- **`notamsys-api`** -- the FastAPI backend, built from `apps/api/Dockerfile`. Runs `alembic upgrade head` before starting on every deploy, so the schema is always current. Gets a 1GB persistent disk mounted at `/app/data` for evidence storage (`NOTAMSYS_STORAGE_BACKEND=local`) -- without a disk, uploaded files would vanish on every redeploy, since Render's container filesystem is otherwise ephemeral.
+- **`notamsys-api`** -- the FastAPI backend, built from `apps/api/Dockerfile`. Runs `alembic upgrade head` before starting on every deploy, so the schema is always current.
 - **`notamsys-web`** -- the Next.js frontend, built from `apps/web/Dockerfile`.
 - **`notamsys-db`** -- managed Postgres, free plan.
 - **No Celery worker, no Redis.** Nothing in this codebase currently dispatches a Celery task -- every call site invokes the same underlying function inline instead of queuing it (see `apps/api/app/worker.py`'s docstrings). Deploying an idle worker with nothing feeding it would just be paying for infrastructure that does nothing.
@@ -35,6 +35,15 @@
 
 ## What you still don't get for free
 
+- **Uploaded evidence files don't survive a restart or redeploy.** `notamsys-api` has no persistent disk -- Render's free plan doesn't support them at all, and attaching one makes the Blueprint fail to validate on that tier. `NOTAMSYS_STORAGE_BACKEND=local` writes to the container's filesystem, which Render wipes on every deploy and periodically recycles even without one. This is fine for trying the app out; it's not fine for anything you need to keep. Two ways to fix it once that matters:
+  - Upgrade `notamsys-api`'s plan to Starter or above in `render.yaml`, then add back:
+    ```yaml
+    disk:
+      name: notamsys-api-data
+      mountPath: /app/data
+      sizeGB: 1
+    ```
+  - Or switch `NOTAMSYS_STORAGE_BACKEND` to `minio` and point `NOTAMSYS_OBJECT_STORAGE_*` at a real S3-compatible bucket (AWS S3, Cloudflare R2, Backblaze B2, or your own MinIO) -- works on the free plan since nothing is written to local disk.
 - **OCR/scanned-document extraction** stays off (`NOTAMSYS_EXTRACTION_ENABLED=false`). The Docker image doesn't install the `ocr` extras group (PyMuPDF/pytesseract/Pillow) or a `tesseract` binary -- turning extraction on without also rebuilding the image with those would fail at the first upload. See [OPERATIONAL_BOUNDARY.md](OPERATIONAL_BOUNDARY.md).
 - **AFTN/Comsoft, GCAA website and email publication channels** stay simulated (`NOTAMSYS_PUBLICATION_MODE=simulated_sync`) -- there's no live circuit or CMS/SMTP credentials to point at yet, on Render or anywhere else.
 - **The free Postgres plan expires after 30 days** on Render (a platform limit, not this project's). Upgrade the `notamsys-db` plan before that if you want this deployment to outlive the trial.

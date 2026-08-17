@@ -10,6 +10,16 @@
 # with nothing feeding it would just be paying for infrastructure that
 # does nothing, which is exactly the kind of unearned claim this project
 # tries not to make elsewhere. Add both back here if that changes.
+#
+# Also deliberately NOT included: a persistent disk on notamsys-api.
+# Render's free plan doesn't support disks at all -- attaching one here
+# would make the Blueprint fail to validate on the tier this defaults to.
+# Without one, NOTAMSYS_STORAGE_BACKEND=local means uploaded evidence
+# files are lost on every restart/redeploy (Render's container filesystem
+# is otherwise ephemeral). Upgrade notamsys-api's plan to Starter or above
+# and add a disk block back (see docs/DEPLOYMENT.md) once evidence needs
+# to survive a redeploy, or switch NOTAMSYS_STORAGE_BACKEND to "minio"
+# against a real S3-compatible bucket instead.
 databases:
   - name: notamsys-db
     databaseName: notamsys
@@ -27,10 +37,6 @@ services:
     region: oregon
     healthCheckPath: /health
     autoDeploy: false
-    disk:
-      name: notamsys-api-data
-      mountPath: /app/data
-      sizeGB: 1
     envVars:
       - key: NOTAMSYS_ENVIRONMENT
         value: production
