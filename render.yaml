@@ -1,7 +1,10 @@
-# Render Blueprint -- provisions the full stack (API, web, Postgres) from
-# one file. See docs/DEPLOYMENT.md for the one-time manual setup this
-# still needs (connecting the repo, filling in the two cross-service URLs,
-# wiring the CI-gated deploy hooks).
+# Render Blueprint -- provisions the API and web app; Postgres is external
+# (Neon), not Render-managed, since a Render free account only allows one
+# active free-tier database and this one was already spoken for elsewhere
+# on the connected account. See docs/DEPLOYMENT.md for the one-time
+# manual setup this still needs (connecting the repo, filling in the
+# database URL and the two cross-service URLs, wiring the CI-gated
+# deploy hooks).
 #
 # Deliberately NOT included: a Celery worker or Redis service. Nothing in
 # this codebase currently dispatches a Celery task -- app/worker.py's
@@ -20,12 +23,6 @@
 # and add a disk block back (see docs/DEPLOYMENT.md) once evidence needs
 # to survive a redeploy, or switch NOTAMSYS_STORAGE_BACKEND to "minio"
 # against a real S3-compatible bucket instead.
-databases:
-  - name: notamsys-db
-    databaseName: notamsys
-    plan: free
-    region: oregon
-
 services:
   - type: web
     name: notamsys-api
@@ -42,10 +39,14 @@ services:
         value: production
       - key: NOTAMSYS_SECRET_KEY
         generateValue: true
+      # External Postgres (Neon or otherwise) -- paste the full connection
+      # string in the Render dashboard's Environment tab, never here (this
+      # file is committed to a public repo). Use the "postgresql://" or
+      # "postgres://" form Neon/Supabase give you as-is; Settings rewrites
+      # the dialect and any sslmode/channel_binding query params asyncpg
+      # doesn't understand at startup (apps/api/app/core/config.py).
       - key: NOTAMSYS_DATABASE_URL
-        fromDatabase:
-          name: notamsys-db
-          property: connectionString
+        sync: false
       # Filled in by hand after the web service below exists and you know
       # its actual .onrender.com URL -- see docs/DEPLOYMENT.md. Predicting
       # it here isn't safe: the name in this file is only the *requested*
