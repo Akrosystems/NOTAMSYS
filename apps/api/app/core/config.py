@@ -1,4 +1,5 @@
 from functools import lru_cache
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -41,17 +42,34 @@ class Settings(BaseSettings):
     @field_validator("database_url")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:
-        # Managed Postgres providers (Render, Heroku-style, Railway) hand out
-        # a plain postgres://... or postgresql://... connection string --
-        # this app's async SQLAlchemy engine needs the +asyncpg dialect
-        # explicitly, or it falls back to a sync driver that isn't even
-        # installed here. Rewriting once at startup means every deployment
-        # target's DATABASE_URL just works without a manual find-replace.
+        # Managed Postgres providers (Render, Heroku-style, Railway, Neon,
+        # Supabase) hand out a plain postgres://... or postgresql://...
+        # connection string -- this app's async SQLAlchemy engine needs the
+        # +asyncpg dialect explicitly, or it falls back to a sync driver
+        # that isn't even installed here. Rewriting once at startup means
+        # every deployment target's DATABASE_URL just works without a
+        # manual find-replace.
         if value.startswith("postgres://"):
-            return "postgresql+asyncpg://" + value.removeprefix("postgres://")
-        if value.startswith("postgresql://"):
-            return "postgresql+asyncpg://" + value.removeprefix("postgresql://")
-        return value
+            value = "postgresql+asyncpg://" + value.removeprefix("postgres://")
+        elif value.startswith("postgresql://"):
+            value = "postgresql+asyncpg://" + value.removeprefix("postgresql://")
+        elif not value.startswith("postgresql+asyncpg://"):
+            return value  # not a Postgres URL (e.g. sqlite for local dev) -- leave alone
+
+        # Those same providers' connection strings also default to libpq-
+        # style query params (sslmode=require, sometimes channel_binding=
+        # require) that asyncpg's connect() doesn't recognize at all --
+        # confirmed live against a real Neon database: passing sslmode
+        # through raises "unexpected keyword argument 'sslmode'" and the
+        # app never starts. asyncpg wants ssl=require instead; channel_
+        # binding has no asyncpg equivalent, so it's dropped rather than
+        # guessed at.
+        parts = urlsplit(value)
+        query = dict(parse_qsl(parts.query))
+        if "sslmode" in query:
+            query["ssl"] = query.pop("sslmode")
+        query.pop("channel_binding", None)
+        return urlunsplit(parts._replace(query=urlencode(query)))
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -24,3 +24,19 @@ def test_already_correct_dialect_is_left_alone() -> None:
 def test_sqlite_url_is_untouched() -> None:
     url = "sqlite+aiosqlite:///./data/notamsys.db"
     assert Settings(database_url=url).database_url == url
+
+
+def test_libpq_sslmode_is_translated_for_asyncpg() -> None:
+    """asyncpg's connect() doesn't recognize the libpq-style sslmode
+    parameter Neon/Supabase/etc. connection strings default to -- confirmed
+    live against a real Neon database: passing it through raises
+    "unexpected keyword argument 'sslmode'" and the app never starts."""
+    url = "postgresql://user:pass@host/db?sslmode=require"
+    assert Settings(database_url=url).database_url == "postgresql+asyncpg://user:pass@host/db?ssl=require"
+
+
+def test_channel_binding_param_is_dropped() -> None:
+    """channel_binding has no asyncpg equivalent -- dropped rather than
+    guessed at, same reasoning as sslmode above."""
+    url = "postgresql://user:pass@host/db?sslmode=require&channel_binding=require"
+    assert Settings(database_url=url).database_url == "postgresql+asyncpg://user:pass@host/db?ssl=require"
