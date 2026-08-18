@@ -304,6 +304,18 @@ class PublicationDeliveryRead(ORMModel):
     response_payload: dict[str, Any]
 
 
+class AftnOutboxItem(ORMModel):
+    """One pending AFTN envelope for app/aftn_bridge.py to pick up and hand
+    to the real Comsoft/CADAS terminal. See docs/AFTN_BRIDGE.md."""
+
+    id: uuid.UUID
+    outbound_body: str
+
+
+class AftnAckRequest(BaseModel):
+    external_reference: str = Field(min_length=1, max_length=200)
+
+
 class RuleVersionRead(ORMModel):
     id: uuid.UUID
     version: str

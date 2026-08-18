@@ -288,6 +288,13 @@ class PublicationDelivery(Base):
     attempted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     response_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    # The outbound message body dispatch_delivery built for this channel --
+    # not just the send *result* (response_payload above). Needed so
+    # app/aftn_bridge.py can fetch what to actually deliver via
+    # GET /aftn/outbox instead of NOTAMSYS writing to a local filesystem
+    # ATSEP's on-prem box can never reach. Populated for every channel, used
+    # by AFTN specifically.
+    outbound_body: Mapped[str | None] = mapped_column(Text)
 
 
 class ExtractionRun(Base):

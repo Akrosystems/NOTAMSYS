@@ -11,7 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.core.database import get_session
 from app.core.security import create_token, hash_password, verify_password
-from app.dependencies import get_current_user, require_roles
+from app.dependencies import get_current_user, require_roles, require_service_key
 from app.models import (
     Aerodrome,
     Attachment,
@@ -31,6 +31,8 @@ from app.models import (
 )
 from app.schemas import (
     AerodromeRead,
+    AftnAckRequest,
+    AftnOutboxItem,
     AipDatasetRead,
     AttachmentRead,
     BrandingRead,
@@ -607,29 +609,11 @@ async def publish(
         await dispatch_delivery(session, delivery, request.notam, simulated=simulated)
 
     failed = [d for d in deliveries if d.status == "failed"]
-    if failed and len(failed) == len(deliveries):
-        # Total failure -- nothing went out on any channel, so there is
-        # nothing useful to show or retry against. Revert and let the
-        # manager start over once whatever's misconfigured is fixed.
-        await transition_request(
-            session,
-            request,
-            WorkflowStatus.APPROVED,
-            user,
-            "publication_failed",
-            payload={"failed_channels": [d.channel for d in failed]},
-        )
-    elif all(delivery.status == "acknowledged" for delivery in deliveries):
-        request.notam.published_at = datetime.now(UTC)
-        await transition_request(
-            session, request, WorkflowStatus.PUBLISHED, user, "publication_completed"
-        )
-    # Otherwise this is a mixed outcome -- some channels acknowledged/sent,
-    # and possibly some genuinely failed, but not all of them. The request
-    # stays PUBLISHING so the per-channel delivery table (and each failed
-    # row's Retry button) remains visible and actionable instead of being
-    # hidden behind a full revert to Approved.
-    elif failed:
+    if failed and len(failed) < len(deliveries):
+        # Mixed outcome -- some channels failed, not all. Audited separately
+        # from the total-failure/all-success cases _reconcile_publishing_status
+        # below handles, since "partial" is a distinct, actionable state
+        # worth its own trail (the request stays PUBLISHING either way).
         await audit(
             session,
             "notam_request",
@@ -638,6 +622,7 @@ async def publish(
             user.id,
             payload={"failed_channels": [d.channel for d in failed]},
         )
+    await _reconcile_publishing_status(session, request.notam, user)
     await session.commit()
     await session.refresh(request)
     return request
@@ -687,26 +672,122 @@ async def retry_delivery(
         payload={"channel": delivery.channel, "status": delivery.status},
     )
 
+    await _reconcile_publishing_status(session, notam, user)
+    await session.commit()
+    await session.refresh(delivery)
+    return delivery
+
+
+async def _reconcile_publishing_status(
+    session: AsyncSession, notam: Notam, actor: User
+) -> None:
+    """Shared by /deliveries/{id}/retry and /aftn/outbox/{id}/ack -- after
+    any single delivery's status changes, re-check the whole set the same
+    way /publish itself does: only a *total* failure reverts to APPROVED
+    (nothing to retry against, start over), only *all* acknowledged reaches
+    PUBLISHED, and a still-mixed outcome (e.g. one channel retried and
+    failed again, others fine) is left exactly where it is -- PUBLISHING,
+    with the delivery table still visible and actionable. A one-line
+    `any(failed)` check here previously reverted the whole request on a
+    single still-failing retry, undoing the same fix made in /publish."""
     request = await session.scalar(
         select(NotamRequest)
         .options(selectinload(NotamRequest.notam))
         .where(NotamRequest.id == notam.request_id)
     )
-    if request is not None and request.status == WorkflowStatus.PUBLISHING:
-        siblings = list(
-            await session.scalars(
-                select(PublicationDelivery).where(PublicationDelivery.notam_id == notam.id)
-            )
+    if request is None or request.status != WorkflowStatus.PUBLISHING:
+        return
+    siblings = list(
+        await session.scalars(
+            select(PublicationDelivery).where(PublicationDelivery.notam_id == notam.id)
         )
-        if any(sibling.status == "failed" for sibling in siblings):
-            await transition_request(
-                session, request, WorkflowStatus.APPROVED, user, "publication_failed"
-            )
-        elif all(sibling.status == "acknowledged" for sibling in siblings):
-            notam.published_at = datetime.now(UTC)
-            await transition_request(
-                session, request, WorkflowStatus.PUBLISHED, user, "publication_completed"
-            )
+    )
+    failed = [s for s in siblings if s.status == "failed"]
+    if failed and len(failed) == len(siblings):
+        await transition_request(
+            session, request, WorkflowStatus.APPROVED, actor, "publication_failed",
+            payload={"failed_channels": [s.channel for s in failed]},
+        )
+    elif all(s.status == "acknowledged" for s in siblings):
+        notam.published_at = datetime.now(UTC)
+        await transition_request(
+            session, request, WorkflowStatus.PUBLISHED, actor, "publication_completed"
+        )
+
+
+async def _get_aftn_bridge_actor(session: AsyncSession) -> User:
+    """No person operates app/aftn_bridge.py -- it authenticates with the
+    service key, not a login -- but transition_request()/audit() still need
+    a User to attribute the resulting state changes to, same reasoning as
+    _get_portal_user for anonymous public submissions."""
+    actor = await session.scalar(select(User).where(User.email == "aftn-bridge@notamsys.app"))
+    if actor is None:
+        actor = User(
+            email="aftn-bridge@notamsys.app",
+            full_name="AFTN Bridge Service",
+            role=Role.ORIGINATOR,
+            password_hash=hash_password(uuid.uuid4().hex + uuid.uuid4().hex),
+            organization="GCAA AIS",
+        )
+        session.add(actor)
+        await session.flush()
+    return actor
+
+
+@router.get(
+    "/aftn/outbox",
+    response_model=list[AftnOutboxItem],
+    tags=["aftn-bridge"],
+    dependencies=[Depends(require_service_key)],
+)
+async def aftn_outbox(session: Session) -> list[PublicationDelivery]:
+    """Polled by app/aftn_bridge.py on ATSEP's on-prem Comsoft box -- see
+    docs/AFTN_BRIDGE.md. Lists AFTN envelopes built and queued (PullQueueAftnAdapter
+    marked them "sent") but not yet picked up (no external_reference yet)."""
+    result = await session.scalars(
+        select(PublicationDelivery)
+        .where(
+            PublicationDelivery.channel == "AFTN",
+            PublicationDelivery.status == "sent",
+            PublicationDelivery.external_reference.is_(None),
+        )
+        .order_by(PublicationDelivery.attempted_at)
+    )
+    return list(result)
+
+
+@router.post(
+    "/aftn/outbox/{delivery_id}/ack",
+    response_model=PublicationDeliveryRead,
+    tags=["aftn-bridge"],
+    dependencies=[Depends(require_service_key)],
+)
+async def aftn_ack(
+    delivery_id: uuid.UUID, payload: AftnAckRequest, session: Session
+) -> PublicationDelivery:
+    """Called by app/aftn_bridge.py once it has written the envelope to the
+    directory Comsoft's terminal actually watches. `external_reference` is
+    whatever filename or id the bridge script reports. Still "sent" ->
+    "acknowledged" here, not a confirmation Comsoft transmitted it -- that
+    remains outside what this process can ever observe."""
+    delivery = await session.get(PublicationDelivery, delivery_id)
+    if delivery is None or delivery.channel != "AFTN":
+        raise HTTPException(status_code=404, detail="AFTN delivery not found")
+    delivery.status = "acknowledged"
+    delivery.acknowledged_at = datetime.now(UTC)
+    delivery.external_reference = payload.external_reference
+    notam = await session.get(Notam, delivery.notam_id)
+    if notam is not None:
+        actor = await _get_aftn_bridge_actor(session)
+        await audit(
+            session,
+            "publication_delivery",
+            delivery.id,
+            "aftn_bridge_acknowledged",
+            actor.id,
+            payload={"external_reference": payload.external_reference},
+        )
+        await _reconcile_publishing_status(session, notam, actor)
     await session.commit()
     await session.refresh(delivery)
     return delivery

@@ -19,6 +19,7 @@ async def dispatch_delivery(
 ) -> None:
     adapter = build_adapter(delivery.channel, delivery.destination, simulated=simulated)
     message = adapter.prepare(notam)
+    delivery.outbound_body = message.body
     delivery.attempted_at = datetime.now(UTC)
     try:
         receipt = await adapter.send(message)

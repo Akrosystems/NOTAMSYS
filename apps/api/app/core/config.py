@@ -46,6 +46,36 @@ class Settings(BaseSettings):
     # this seeded service account rather than requiring created_by_id to be
     # nullable across the whole NotamRequest model for one intake path.
     public_portal_email: str = "portal@notamsys.app"
+    # Inbound requests picked up by app/email_poller.py are attributed to
+    # this seeded service account, same reasoning as public_portal_email.
+    email_intake_service_email: str = "email-intake@notamsys.app"
+
+    # Outbound SMTP for the EMAIL publication channel. Unset by default --
+    # EMAIL falls back to UnconfiguredAdapter's honest failure in real mode
+    # until these are supplied. See docs/INTEGRATION_REQUIREMENTS.md for
+    # exactly what to request from whoever administers the mailbox.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_address: str | None = None
+    smtp_use_tls: bool = True
+
+    # Inbound IMAP polling (app/email_poller.py) for a shared mailbox that
+    # receives NOTAM request emails. Unset by default -- the poller refuses
+    # to start without these rather than silently doing nothing forever.
+    imap_host: str | None = None
+    imap_port: int = 993
+    imap_username: str | None = None
+    imap_password: str | None = None
+    imap_mailbox: str = "INBOX"
+    imap_use_ssl: bool = True
+
+    # Machine credential for the on-prem AFTN bridge script (ATSEP's Comsoft
+    # Linux box) to authenticate against /aftn/outbox -- never a user JWT,
+    # since no person is logging in. Unset by default; the bridge endpoints
+    # refuse all requests until this is set. See docs/AFTN_BRIDGE.md.
+    aftn_bridge_api_key: str | None = None
 
     @field_validator("database_url")
     @classmethod

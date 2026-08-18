@@ -2,15 +2,17 @@ import uuid
 from collections.abc import Callable
 
 import jwt
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, Security, status
+from fastapi.security import APIKeyHeader, OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_session
 from app.core.security import decode_token
 from app.models import Role, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+_service_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
 async def get_current_user(
@@ -41,3 +43,18 @@ def require_roles(*roles: Role) -> Callable[..., User]:
         return user
 
     return dependency
+
+
+async def require_service_key(key: str | None = Security(_service_key_header)) -> None:
+    """Machine-to-machine auth for app/aftn_bridge.py -- ATSEP's on-prem
+    poller has no user account and shouldn't get one; it's not a person
+    logging in. Deliberately separate from get_current_user/JWT so a leaked
+    bridge key can be rotated without touching any human's session, and a
+    leaked human session can never reach these endpoints."""
+    if not settings.aftn_bridge_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AFTN bridge is not configured (NOTAMSYS_AFTN_BRIDGE_API_KEY unset)",
+        )
+    if key != settings.aftn_bridge_api_key:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")

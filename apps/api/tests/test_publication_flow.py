@@ -281,6 +281,77 @@ def test_per_channel_mode_lets_aftn_go_real_while_email_stays_simulated(
         asyncio.run(engine.dispose())
 
 
+def test_retry_stays_publishing_when_one_channel_still_fails_after_retry(
+    tmp_path, monkeypatch
+) -> None:
+    """The same bug as the partial-failure /publish case, one layer deeper:
+    retrying one still-broken channel among several must not revert the
+    whole request just because that one channel is still failing -- only a
+    retry that leaves *every* channel failed should revert."""
+    from app.api import router as router_module
+    from app.core.security import hash_password
+    from app.models import Role, User
+
+    monkeypatch.setattr(router_module.settings, "publication_mode", "async_adapters")
+    monkeypatch.setattr(router_module.settings, "aftn_drop_dir", str(tmp_path / "aftn-outbox"))
+
+    engine, sessions = _prepare(tmp_path, "pub_retry_reconcile.db")
+
+    async def add_manager() -> None:
+        async with sessions() as session:
+            session.add(
+                User(
+                    email="manager@example.com",
+                    full_name="Test Manager",
+                    role=Role.NOF_MANAGER,
+                    password_hash=hash_password("SafePassword!26"),
+                )
+            )
+            await session.commit()
+
+    asyncio.run(add_manager())
+
+    async def override_session():
+        async with sessions() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        with TestClient(app) as client:
+            officer_headers = _login(client, "officer@example.com")
+            specialist_headers = _login(client, "specialist@example.com")
+            manager_headers = _login(client, "manager@example.com")
+            request_id, notam_id = _approved_notam(client, officer_headers, specialist_headers)
+
+            published = client.post(
+                f"/api/v1/requests/{request_id}/publish", headers=officer_headers
+            )
+            assert published.json()["status"] == "publishing"
+
+            deliveries = client.get(
+                f"/api/v1/notams/{notam_id}/deliveries", headers=officer_headers
+            ).json()
+            email_id = next(d["id"] for d in deliveries if d["channel"] == "EMAIL")
+
+            # EMAIL has no live backend in async_adapters mode -- retrying it
+            # fails again, exactly like a real retry against an unfixed
+            # misconfiguration would. GCAA_WEB is still failed too (never
+            # retried), so the overall set is still a partial failure.
+            retry = client.post(
+                f"/api/v1/deliveries/{email_id}/retry", headers=manager_headers
+            )
+            assert retry.status_code == 200
+            assert retry.json()["status"] == "failed"
+
+            request_after = client.get(
+                f"/api/v1/requests/{request_id}", headers=officer_headers
+            ).json()
+            assert request_after["status"] == "publishing"
+    finally:
+        app.dependency_overrides.clear()
+        asyncio.run(engine.dispose())
+
+
 def test_retry_delivery_requires_nof_manager(tmp_path) -> None:
     engine, sessions = _prepare(tmp_path, "pub_retry_rbac.db")
 

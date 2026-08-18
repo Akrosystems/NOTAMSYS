@@ -34,9 +34,14 @@ NOTAMSYS/
 ├── docs/
 │   ├── reference/           Local-only controlled source manuals (excluded from this repo, see docs/reference/README.md)
 │   ├── ARCHITECTURE.md
+│   ├── DEPLOYMENT.md
 │   ├── OPERATIONAL_BOUNDARY.md
+│   ├── INTEGRATION_REQUIREMENTS.md  What to request from IT (email) and ATSEP (AFTN) to go live
+│   ├── AFTN_BRIDGE.md       Connecting the real Comsoft/CADAS terminal
 │   └── SECURITY.md
-├── scripts/dev.ps1
+├── scripts/
+│   ├── dev.ps1
+│   └── aftn_bridge.py       Run on ATSEP's Comsoft box, not on the NOTAMSYS server
 ├── compose.yaml
 ├── package.json
 ├── pnpm-workspace.yaml

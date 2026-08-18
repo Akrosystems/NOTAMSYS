@@ -1,7 +1,11 @@
+import smtplib
 import uuid
 from datetime import UTC, datetime
+from email.message import EmailMessage
+from email.utils import make_msgid
 from pathlib import Path
 
+from app.core.config import settings
 from app.models import Notam
 from app.services.publication.aftn import build_envelope
 from app.services.publication.base import DeliveryReceipt, OutboundMessage
@@ -63,6 +67,39 @@ class FileDropAftnAdapter:
         return DeliveryReceipt(status="sent", external_reference=filename)
 
 
+class PullQueueAftnAdapter:
+    """Real AFTN dispatch for a NOTAMSYS deployment that isn't co-located
+    with the Comsoft/CADAS terminal -- e.g. this app hosted on Render while
+    the terminal is an on-prem Linux box ATSEP controls. FileDropAftnAdapter
+    above assumes a shared filesystem between this process and the terminal,
+    which doesn't exist across that boundary (and Render's local disk is
+    wiped on every redeploy regardless -- see docs/DEPLOYMENT.md).
+
+    Instead of writing anywhere, this just builds and ITA-2-validates the
+    envelope and returns "sent" -- dispatch_delivery persists the envelope
+    body onto the delivery row, and app/aftn_bridge.py (run by ATSEP on
+    their own box, see docs/AFTN_BRIDGE.md) polls GET /aftn/outbox for it,
+    writes it to the directory Comsoft actually watches, and acknowledges
+    it back. Still "sent", never "acknowledged" here -- nothing in this
+    process can confirm an operator actually transmitted it, same honest
+    limit FileDropAftnAdapter already had."""
+
+    channel = "AFTN"
+    requires_acknowledgement = True
+
+    def prepare(self, notam: Notam) -> OutboundMessage:
+        body = build_envelope(notam.formatted_message)
+        return OutboundMessage(
+            channel=self.channel,
+            destination="DGAANOTA/DGAANOTB/DGAANOTC",
+            body=body,
+            request_id=notam.request_id,
+        )
+
+    async def send(self, message: OutboundMessage) -> DeliveryReceipt:
+        return DeliveryReceipt(status="sent")
+
+
 class AixmPublishAdapter:
     """Writes the NOTAM's real AIXM 5.1.1 Event XML (services/aixm) into
     evidence storage under a publications/ prefix -- a genuine artifact,
@@ -113,6 +150,51 @@ class SimulatedChannelAdapter:
         return DeliveryReceipt(
             status="acknowledged", external_reference=f"SIM-{uuid.uuid4().hex[:10].upper()}"
         )
+
+
+class SmtpEmailAdapter:
+    """Real outbound email for the EMAIL channel. `smtplib` is synchronous --
+    calls block the event loop briefly, same tradeoff already accepted for
+    MinioStorage's client. Acceptable at current volume (one message per
+    publish); revisit with a thread offload if that changes.
+
+    registry.build_adapter only constructs this once SMTP settings are
+    present -- if the channel is set to real but the settings are missing,
+    the caller falls back to UnconfiguredAdapter's honest failure instead of
+    reaching this class at all."""
+
+    channel = "EMAIL"
+    requires_acknowledgement = False
+
+    def __init__(self, destination: str) -> None:
+        self.destination = destination
+
+    def prepare(self, notam: Notam) -> OutboundMessage:
+        return OutboundMessage(
+            channel=self.channel,
+            destination=self.destination,
+            body=notam.formatted_message,
+            request_id=notam.request_id,
+        )
+
+    async def send(self, message: OutboundMessage) -> DeliveryReceipt:
+        identifier = message.body.splitlines()[0].lstrip("(").strip() if message.body else "NOTAM"
+        email = EmailMessage()
+        email["Subject"] = f"NOTAM Distribution -- {identifier}"
+        email["From"] = settings.smtp_from_address or settings.smtp_username or "notamsys@localhost"
+        email["To"] = message.destination
+        email["Message-Id"] = make_msgid()
+        email.set_content(message.body)
+        try:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=15) as client:
+                if settings.smtp_use_tls:
+                    client.starttls()
+                if settings.smtp_username and settings.smtp_password:
+                    client.login(settings.smtp_username, settings.smtp_password)
+                client.send_message(email)
+        except (smtplib.SMTPException, OSError) as exc:
+            return DeliveryReceipt(status="failed", detail=f"SMTP send failed: {exc}")
+        return DeliveryReceipt(status="acknowledged", external_reference=email["Message-Id"])
 
 
 class UnconfiguredAdapter:

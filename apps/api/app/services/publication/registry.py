@@ -14,8 +14,10 @@ from app.core.config import settings
 from app.services.publication.adapters import (
     AixmPublishAdapter,
     FileDropAftnAdapter,
+    PullQueueAftnAdapter,
     SimulatedAftnAdapter,
     SimulatedChannelAdapter,
+    SmtpEmailAdapter,
     UnconfiguredAdapter,
 )
 from app.services.publication.base import PublicationAdapter
@@ -31,11 +33,23 @@ CHANNELS: tuple[tuple[str, str], ...] = (
 def build_adapter(channel: str, destination: str, *, simulated: bool) -> PublicationAdapter:
     if channel == "AFTN":
         if not simulated:
+            # File-drop only makes sense when this process and the Comsoft
+            # terminal share a filesystem (an on-prem deployment). The pull
+            # queue is the default for the real path otherwise -- see
+            # PullQueueAftnAdapter's docstring for why.
+            if settings.aftn_bridge_api_key:
+                return PullQueueAftnAdapter()
             return FileDropAftnAdapter(Path(settings.aftn_drop_dir))
         return SimulatedAftnAdapter()
     if channel == "AIXM":
         return AixmPublishAdapter()
-    if channel in {"GCAA_WEB", "EMAIL"}:
+    if channel == "EMAIL":
+        if simulated:
+            return SimulatedChannelAdapter(channel, destination)
+        if settings.smtp_host:
+            return SmtpEmailAdapter(destination)
+        return UnconfiguredAdapter(channel, destination)
+    if channel == "GCAA_WEB":
         if simulated:
             return SimulatedChannelAdapter(channel, destination)
         return UnconfiguredAdapter(channel, destination)

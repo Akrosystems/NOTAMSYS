@@ -94,12 +94,13 @@ async def seed() -> None:
         existing = await session.scalar(select(User).limit(1))
         if not existing:
             await _seed_users_and_reference_data(session)
-        # Independently idempotent (keyed on request_number + notam is None),
-        # not gated behind `existing` -- so a second `python -m app.seed` run
-        # against an already-seeded database (e.g. backfilling production
-        # after this function was extended) still fills these in instead of
-        # being a permanent no-op.
+        # Independently idempotent (keyed on request_number + notam is None,
+        # or on email), not gated behind `existing` -- so a second
+        # `python -m app.seed` run against an already-seeded database (e.g.
+        # backfilling production after either function was added) still
+        # fills these in instead of being a permanent no-op.
         await _seed_sample_notam_drafts(session)
+        await _seed_email_intake_user(session)
         await session.commit()
 
 
@@ -308,6 +309,26 @@ async def _seed_sample_notam_drafts(session: AsyncSession) -> None:
                 WorkflowStatus.CHANGES_REQUESTED,
                 payload={"comment": "Confirm exact closure hours with Tamale ATC before resubmitting."},
             )
+
+
+async def _seed_email_intake_user(session: AsyncSession) -> None:
+    """app/email_poller.py attributes every request it ingests to this
+    account, same reasoning as the public-portal service user above --
+    never meant to be logged into interactively."""
+    existing = await session.scalar(
+        select(User).where(User.email == settings.email_intake_service_email)
+    )
+    if existing is not None:
+        return
+    session.add(
+        User(
+            email=settings.email_intake_service_email,
+            full_name="Email Intake Service",
+            role=Role.ORIGINATOR,
+            password_hash=hash_password(uuid.uuid4().hex + uuid.uuid4().hex),
+            organization="GCAA email intake",
+        )
+    )
 
 
 if __name__ == "__main__":
