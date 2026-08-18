@@ -17,12 +17,11 @@
 # Also deliberately NOT included: a persistent disk on notamsys-api.
 # Render's free plan doesn't support disks at all -- attaching one here
 # would make the Blueprint fail to validate on the tier this defaults to.
-# Without one, NOTAMSYS_STORAGE_BACKEND=local means uploaded evidence
-# files are lost on every restart/redeploy (Render's container filesystem
-# is otherwise ephemeral). Upgrade notamsys-api's plan to Starter or above
-# and add a disk block back (see docs/DEPLOYMENT.md) once evidence needs
-# to survive a redeploy, or switch NOTAMSYS_STORAGE_BACKEND to "minio"
-# against a real S3-compatible bucket instead.
+# Evidence storage uses NOTAMSYS_STORAGE_BACKEND=minio against a real
+# S3-compatible bucket instead (Cloudflare R2, Backblaze B2, AWS S3, or
+# your own MinIO) -- works on the free plan since nothing is written to
+# local disk. See docs/DEPLOYMENT.md for the one-time bucket setup this
+# still needs (the four NOTAMSYS_OBJECT_STORAGE_* values below).
 services:
   - type: web
     name: notamsys-api
@@ -58,11 +57,26 @@ services:
       - key: NOTAMSYS_CORS_ORIGINS
         sync: false
       - key: NOTAMSYS_STORAGE_BACKEND
-        value: local
+        value: minio
+      # Real S3-compatible bucket -- Cloudflare R2, Backblaze B2, AWS S3, or
+      # your own MinIO all work against the same client. Never hardcode real
+      # credentials here (this file is public); paste them in the Render
+      # dashboard's Environment tab. See docs/DEPLOYMENT.md.
+      - key: NOTAMSYS_OBJECT_STORAGE_ENDPOINT
+        sync: false
+      - key: NOTAMSYS_OBJECT_STORAGE_ACCESS_KEY
+        sync: false
+      - key: NOTAMSYS_OBJECT_STORAGE_SECRET_KEY
+        sync: false
+      - key: NOTAMSYS_OBJECT_STORAGE_BUCKET
+        sync: false
+      # Requires apps/api/Dockerfile to have installed the tesseract-ocr
+      # system binary and the .[ocr] Python extras -- both real as of this
+      # deploy, not aspirational. See docs/OPERATIONAL_BOUNDARY.md.
       - key: NOTAMSYS_OCR_ENGINE
-        value: disabled
+        value: tesseract
       - key: NOTAMSYS_EXTRACTION_ENABLED
-        value: "false"
+        value: "true"
       - key: NOTAMSYS_PUBLICATION_MODE
         value: simulated_sync
       - key: NOTAMSYS_PUBLIC_INTAKE_ENABLED
