@@ -57,6 +57,7 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
   const [history,setHistory]=useState<AuditEventEntry[]>([]);
   const [historyLoading,setHistoryLoading]=useState(false);
   const [lastDraft,setLastDraft]=useState<NotamDraftResult | null>(null);
+  const [notamLoadError,setNotamLoadError]=useState<string | null>(null);
   const [reviewComment,setReviewComment]=useState("");
   const [deliveries,setDeliveries]=useState<PublicationDelivery[] | null>(null);
   const [systemStatus,setSystemStatus]=useState<SystemStatus | null>(null);
@@ -65,10 +66,10 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
   const values=watch();
   const isEditable = EDITABLE_STATUSES.includes(request.status);
 
-  useEffect(()=>{
-    let cancelled=false;
-    getRequestNotam(request.id).then((notam)=>{
-      if(cancelled||!notam)return;
+  const loadNotam=(onCancelled?:()=>boolean)=>{
+    setNotamLoadError(null);
+    return getRequestNotam(request.id).then((notam)=>{
+      if(onCancelled?.()||!notam)return;
       setLastDraft(notam);
       if(EDITABLE_STATUSES.includes(request.status)){
         reset({
@@ -80,7 +81,12 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
           item_f:notam.item_f??"",item_g:notam.item_g??"",aip_supplement_reference:notam.aip_supplement_reference??""
         });
       }
-    }).catch(()=>{});
+    }).catch((err)=>{if(!onCancelled?.())setNotamLoadError(err instanceof Error?err.message:"Couldn't load the prepared NOTAM.")});
+  };
+
+  useEffect(()=>{
+    let cancelled=false;
+    loadNotam(()=>cancelled);
     getExtraction(request.id).then((run)=>{if(!cancelled)setExtraction(run)}).catch(()=>{if(!cancelled)setExtraction(null)});
     getSystemStatus().then((s)=>{if(!cancelled)setSystemStatus(s)}).catch(()=>{});
     getAipDataset().then((d)=>{if(!cancelled)setAipDataset(d)}).catch(()=>{if(!cancelled)setAipDataset(null)});
@@ -259,7 +265,12 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
         <div className="transmission-preview"><div><strong>Transmission preview</strong><span>ICAO text NOTAM</span></div><pre>{lastDraft?lastDraft.formatted_message:preview}</pre></div>
       </form>:null}
       {tab==="editor" && !isEditable ? <div className="notam-readonly">
-        {!lastDraft ? <div className="empty-state"><p>No NOTAM has been prepared for this request yet.</p></div> : <>
+        {!lastDraft ? <div className="empty-state">
+          {notamLoadError ? <>
+            <p>Couldn&apos;t load the prepared NOTAM -- {notamLoadError}</p>
+            <button type="button" onClick={()=>loadNotam()}><RefreshCw/>Retry</button>
+          </> : <p>No NOTAM has been prepared for this request yet.</p>}
+        </div> : <>
           <div className="transmission-preview"><div><strong>Prepared NOTAM</strong><span>ICAO text NOTAM · read only at this stage</span></div><pre>{lastDraft.formatted_message}</pre></div>
           {(request.status==="publishing"||request.status==="published") ? <div className="delivery-table">
             <h3>Channel delivery status</h3>
