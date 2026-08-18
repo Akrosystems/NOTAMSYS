@@ -10,7 +10,11 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const branding = useBranding();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  // middleware.ts appends ?reason=expired only when a refresh token existed
+  // but was no longer valid (a genuine expiry after 7 days, or revocation)
+  // -- never for a plain unauthenticated visit, so this can't misfire as
+  // "expired" for someone who was simply never logged in.
+  const [error, setError] = useState(searchParams.get("reason") === "expired" ? "Your session expired. Please sign in again." : "");
   return <form onSubmit={async (event) => {
     event.preventDefault(); setBusy(true); setError("");
     const data = new FormData(event.currentTarget);

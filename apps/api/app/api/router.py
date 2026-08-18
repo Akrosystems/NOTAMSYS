@@ -3,6 +3,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime, time
 from typing import Annotated
 
+import jwt
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.core.security import create_token, hash_password, verify_password
+from app.core.security import create_token, decode_token, hash_password, verify_password
 from app.dependencies import get_current_user, require_roles, require_service_key
 from app.models import (
     Aerodrome,
@@ -30,6 +31,7 @@ from app.models import (
     WorkflowStatus,
 )
 from app.schemas import (
+    AccessTokenRead,
     AerodromeRead,
     AftnAckRequest,
     AftnOutboxItem,
@@ -47,6 +49,7 @@ from app.schemas import (
     NotamRead,
     NotamRequestCreate,
     PublicationDeliveryRead,
+    RefreshRequest,
     RequestRead,
     ReviewAction,
     RuleVersionRead,
@@ -83,6 +86,25 @@ async def login(payload: LoginRequest, session: Session) -> TokenPair:
         refresh_token=create_token(str(user.id), "refresh"),
         user=UserRead.model_validate(user),
     )
+
+
+@router.post("/auth/refresh", response_model=AccessTokenRead, tags=["authentication"])
+async def refresh(payload: RefreshRequest, session: Session) -> AccessTokenRead:
+    """Mints a new access token from a still-valid refresh token -- the
+    piece that was missing entirely before: refresh tokens were issued at
+    login and stored in a cookie, but nothing ever exchanged one for a new
+    access token, so every session hard-expired after access_token_minutes
+    (30 min) regardless of activity. Deliberately doesn't rotate the
+    refresh token itself (no reuse-detection exists yet -- see
+    docs/OPERATIONAL_BOUNDARY.md); it keeps its original 7-day expiry."""
+    try:
+        subject = decode_token(payload.refresh_token, expected_type="refresh")
+        user = await session.get(User, uuid.UUID(subject))
+    except (jwt.InvalidTokenError, ValueError):
+        user = None
+    if user is None or not user.is_active:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+    return AccessTokenRead(access_token=create_token(str(user.id)))
 
 
 @router.get("/auth/me", response_model=UserRead, tags=["authentication"])

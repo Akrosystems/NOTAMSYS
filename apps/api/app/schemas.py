@@ -69,6 +69,15 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+class AccessTokenRead(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 class NotamRequestCreate(BaseModel):
     """Mirrors GCAA-AIS-NTM-FR01 (NOTAM Request Form) field-for-field. See
     that form's Item A)-G) and the originator block at the bottom."""
