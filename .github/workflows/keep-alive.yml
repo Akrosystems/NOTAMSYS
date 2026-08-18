@@ -21,6 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping notamsys-api
-        run: curl -sf -o /dev/null -w "api: %{http_code}\n" https://notamsys-api.onrender.com/health || true
+        run: 'curl -sf -o /dev/null -w "api: %{http_code}\n" https://notamsys-api.onrender.com/health || true'
       - name: Ping notamsys-web
-        run: curl -sf -o /dev/null -w "web: %{http_code}\n" https://notamsys-web.onrender.com/ || true
+        run: 'curl -sf -o /dev/null -w "web: %{http_code}\n" https://notamsys-web.onrender.com/ || true'
