@@ -35,6 +35,19 @@ def test_libpq_sslmode_is_translated_for_asyncpg() -> None:
     assert Settings(database_url=url).database_url == "postgresql+asyncpg://user:pass@host/db?ssl=require"
 
 
+def test_mode_for_channel_falls_back_to_global_publication_mode() -> None:
+    settings = Settings(publication_mode="async_adapters")
+    assert settings.mode_for_channel("AFTN") == "async_adapters"
+    assert settings.mode_for_channel("GCAA_WEB") == "async_adapters"
+    assert settings.mode_for_channel("EMAIL") == "async_adapters"
+
+
+def test_mode_for_channel_prefers_per_channel_override() -> None:
+    settings = Settings(publication_mode="async_adapters", email_mode="simulated_sync")
+    assert settings.mode_for_channel("EMAIL") == "simulated_sync"
+    assert settings.mode_for_channel("AFTN") == "async_adapters"
+
+
 def test_channel_binding_param_is_dropped() -> None:
     """channel_binding has no asyncpg equivalent -- dropped rather than
     guessed at, same reasoning as sslmode above."""

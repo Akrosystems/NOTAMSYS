@@ -145,6 +145,7 @@ export interface SystemStatus {
   ocr_engine: string;
   extraction_enabled: boolean;
   publication_mode: string;
+  channel_modes: { AFTN: string; GCAA_WEB: string; EMAIL: string };
   aip_provider: string;
   storage_backend: string;
   public_intake_enabled: boolean;

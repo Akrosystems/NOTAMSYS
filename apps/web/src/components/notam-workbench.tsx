@@ -191,8 +191,11 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
   const doPublish=async()=>{
     setBusy(true);
     try{
-      await workflowAction(request.id,"publish");
-      setNotice("Publication started across all configured channels.");
+      const result=await workflowAction(request.id,"publish") as NotamRequest;
+      if(result.status==="published")setNotice("Published successfully to every configured channel.");
+      else if(result.status==="publishing")setNotice("Published, but one or more channels failed -- see delivery status below and retry.");
+      else if(result.status==="approved")setNotice("Publish failed on every channel -- reverted to Approved. Check channel configuration and try again.");
+      else setNotice("Publication started.");
       router.refresh();
     }catch(err){setNotice(err instanceof Error?err.message:"Could not publish this NOTAM.")}
     finally{setBusy(false)}
@@ -338,13 +341,21 @@ function provenanceItems(aipDataset: AipDatasetSummary | null): AssuranceItem[] 
   ];
 }
 
+// Each channel's real/simulated mode is independent (Settings.mode_for_channel)
+// -- "not simulated" does not mean "will succeed". GCAA_WEB and Email have no
+// live backend at all, so in real mode they're a guaranteed failure, not an
+// "ok" this panel used to claim; only AIXM is unconditionally live. Mirrors
+// the per-channel disclosure the Integrations page already gets right.
 function downstreamItems(status: SystemStatus | null): AssuranceItem[] {
-  const simulated = !status || status.publication_mode === "simulated_sync";
+  const modes = status?.channel_modes;
+  const aftnSimulated = !modes || modes.AFTN === "simulated_sync";
+  const webSimulated = !modes || modes.GCAA_WEB === "simulated_sync";
+  const emailSimulated = !modes || modes.EMAIL === "simulated_sync";
   return [
-    { tone: simulated ? "warn" : "ok", label: `ICAO text NOTAM · AMHS/AFTN${simulated ? " (simulated)" : ""}` },
+    { tone: "warn", label: `ICAO text NOTAM · AMHS/AFTN${aftnSimulated ? " (simulated)" : " (file-drop, unconfirmed)"}` },
     { tone: "ok", label: "Digital NOTAM · AIXM 5.1.1" },
-    { tone: simulated ? "warn" : "ok", label: `GCAA public web portal${simulated ? " (simulated)" : ""}` },
-    { tone: simulated ? "warn" : "ok", label: `Email distribution${simulated ? " (simulated)" : ""}` }
+    { tone: "warn", label: `GCAA public web portal${webSimulated ? " (simulated)" : " (not connected)"}` },
+    { tone: "warn", label: `Email distribution${emailSimulated ? " (simulated)" : " (not connected)"}` }
   ];
 }
 

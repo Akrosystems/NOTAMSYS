@@ -602,29 +602,42 @@ async def publish(
     session.add_all(deliveries)
     await session.flush()
 
-    simulated = settings.publication_mode == "simulated_sync"
     for delivery in deliveries:
+        simulated = settings.mode_for_channel(delivery.channel) == "simulated_sync"
         await dispatch_delivery(session, delivery, request.notam, simulated=simulated)
 
-    if any(delivery.status == "failed" for delivery in deliveries):
+    failed = [d for d in deliveries if d.status == "failed"]
+    if failed and len(failed) == len(deliveries):
+        # Total failure -- nothing went out on any channel, so there is
+        # nothing useful to show or retry against. Revert and let the
+        # manager start over once whatever's misconfigured is fixed.
         await transition_request(
             session,
             request,
             WorkflowStatus.APPROVED,
             user,
             "publication_failed",
-            payload={
-                "failed_channels": [d.channel for d in deliveries if d.status == "failed"]
-            },
+            payload={"failed_channels": [d.channel for d in failed]},
         )
     elif all(delivery.status == "acknowledged" for delivery in deliveries):
         request.notam.published_at = datetime.now(UTC)
         await transition_request(
             session, request, WorkflowStatus.PUBLISHED, user, "publication_completed"
         )
-    # Otherwise one or more channels are "sent" (dispatched, awaiting
-    # acknowledgement) with none failed -- the request stays PUBLISHING
-    # until a retry (see /deliveries/{id}/retry) resolves them.
+    # Otherwise this is a mixed outcome -- some channels acknowledged/sent,
+    # and possibly some genuinely failed, but not all of them. The request
+    # stays PUBLISHING so the per-channel delivery table (and each failed
+    # row's Retry button) remains visible and actionable instead of being
+    # hidden behind a full revert to Approved.
+    elif failed:
+        await audit(
+            session,
+            "notam_request",
+            request.id,
+            "publication_partial",
+            user.id,
+            payload={"failed_channels": [d.channel for d in failed]},
+        )
     await session.commit()
     await session.refresh(request)
     return request
@@ -663,7 +676,7 @@ async def retry_delivery(
     notam = await session.get(Notam, delivery.notam_id)
     if notam is None:
         raise HTTPException(status_code=404, detail="NOTAM not found")
-    simulated = settings.publication_mode == "simulated_sync"
+    simulated = settings.mode_for_channel(delivery.channel) == "simulated_sync"
     await dispatch_delivery(session, delivery, notam, simulated=simulated)
     await audit(
         session,
@@ -863,6 +876,11 @@ async def system_status(_: CurrentUser) -> dict[str, object]:
         "ocr_engine": settings.ocr_engine,
         "extraction_enabled": settings.extraction_enabled,
         "publication_mode": settings.publication_mode,
+        "channel_modes": {
+            "AFTN": settings.mode_for_channel("AFTN"),
+            "GCAA_WEB": settings.mode_for_channel("GCAA_WEB"),
+            "EMAIL": settings.mode_for_channel("EMAIL"),
+        },
         "aip_provider": settings.aip_provider,
         "storage_backend": settings.storage_backend,
         "public_intake_enabled": settings.public_intake_enabled,

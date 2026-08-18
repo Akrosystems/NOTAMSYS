@@ -22,12 +22,17 @@ export default async function IntegrationsPage() {
     getRuleVersions().catch(() => [])
   ]);
   const activeRuleVersion = ruleVersions.find((version) => version.active);
-  const simulated = status.publication_mode === "simulated_sync";
+  // Each channel's mode is independent (Settings.mode_for_channel) -- a real
+  // rollout can have AFTN live while GCAA_WEB/Email stay simulated, so this
+  // page reads each channel's own mode instead of one shared flag.
+  const aftnSimulated = status.channel_modes.AFTN === "simulated_sync";
+  const webSimulated = status.channel_modes.GCAA_WEB === "simulated_sync";
+  const emailSimulated = status.channel_modes.EMAIL === "simulated_sync";
 
   const rows: { title: string; detail: string; state: State }[] = [
     {
       title: "AFTN / Comsoft (CADAS)",
-      detail: simulated
+      detail: aftnSimulated
         ? "Simulated dev/test mode: envelopes are built and ITA-2 validated, but not transmitted anywhere."
         : "File-drop adapter: writes a validated AFTN envelope to a watched directory for manual pickup by the Comsoft terminal. No live circuit is connected.",
       state: "partial"
@@ -39,17 +44,17 @@ export default async function IntegrationsPage() {
     },
     {
       title: "GCAA website (gcaa.com.gh/notam)",
-      detail: simulated
+      detail: webSimulated
         ? "Simulated dev/test mode: this channel always succeeds so publication can complete without a live CMS."
         : "No CMS integration exists yet -- this channel honestly fails until one is connected.",
-      state: simulated ? "partial" : "stub"
+      state: webSimulated ? "partial" : "stub"
     },
     {
       title: "Email distribution (aisnotam@caa.com.gh)",
-      detail: simulated
+      detail: emailSimulated
         ? "Simulated dev/test mode: this channel always succeeds so publication can complete without a live SMTP relay."
         : "No SMTP relay is configured yet -- this channel honestly fails until one is connected.",
-      state: simulated ? "partial" : "stub"
+      state: emailSimulated ? "partial" : "stub"
     },
     {
       title: "OCR / document extraction",

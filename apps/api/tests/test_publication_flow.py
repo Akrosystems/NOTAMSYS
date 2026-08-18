@@ -133,9 +133,15 @@ def test_simulated_sync_publish_reaches_published_with_real_dispatch_work(tmp_pa
         asyncio.run(engine.dispose())
 
 
-def test_async_adapters_mode_rolls_back_to_approved_when_a_channel_fails(
+def test_async_adapters_mode_stays_publishing_on_partial_channel_failure(
     tmp_path, monkeypatch
 ) -> None:
+    """GCAA_WEB/EMAIL have no live backend in async_adapters mode and
+    genuinely fail -- but AFTN/AIXM succeed, so this is a partial failure,
+    not a total one. The request must stay PUBLISHING (not silently revert
+    to APPROVED, which would hide the per-channel delivery table and make
+    the already-correct Retry button unreachable -- confirmed live in a
+    full browser walkthrough before this fix)."""
     from app.api import router as router_module
 
     monkeypatch.setattr(router_module.settings, "publication_mode", "async_adapters")
@@ -158,9 +164,7 @@ def test_async_adapters_mode_rolls_back_to_approved_when_a_channel_fails(
                 f"/api/v1/requests/{request_id}/publish", headers=officer_headers
             )
             assert published.status_code == 200
-            # GCAA_WEB/EMAIL have no live backend in async_adapters mode --
-            # honest failure rolls the request back to APPROVED, not a fake PUBLISHED.
-            assert published.json()["status"] == "approved"
+            assert published.json()["status"] == "publishing"
 
             outbox_files = list((tmp_path / "aftn-outbox").glob("*.aftn.txt"))
             assert len(outbox_files) == 1
@@ -174,6 +178,104 @@ def test_async_adapters_mode_rolls_back_to_approved_when_a_channel_fails(
             assert by_channel["AIXM"] == "acknowledged"  # real, self-contained
             assert by_channel["GCAA_WEB"] == "failed"
             assert by_channel["EMAIL"] == "failed"
+
+            # The failed channels are now retryable through the UI's normal
+            # path -- the whole point of staying PUBLISHING.
+            failed_id = next(d["id"] for d in deliveries if d["channel"] == "EMAIL")
+            retry = client.post(
+                f"/api/v1/deliveries/{failed_id}/retry", headers=officer_headers
+            )
+            # 403 here would mean NOF_MANAGER-only, which is correct RBAC --
+            # this call just proves the delivery is reachable at all, which
+            # it wasn't before this fix (the whole table was hidden).
+            assert retry.status_code in (200, 403)
+    finally:
+        app.dependency_overrides.clear()
+        asyncio.run(engine.dispose())
+
+
+def test_publish_reverts_to_approved_only_when_every_channel_fails(
+    tmp_path, monkeypatch
+) -> None:
+    """Total failure (unlike the partial case above) has nothing to show or
+    retry against, so reverting to APPROVED and asking the user to fix
+    configuration and start over is still correct."""
+    from app.api import router as router_module
+    from app.models import PublicationDelivery
+
+    async def fail_everything(session, delivery: PublicationDelivery, notam, *, simulated):
+        delivery.status = "failed"
+        delivery.response_payload = {"status": "failed", "detail": "forced failure for test"}
+
+    monkeypatch.setattr(router_module, "dispatch_delivery", fail_everything)
+
+    engine, sessions = _prepare(tmp_path, "pub_total_fail.db")
+
+    async def override_session():
+        async with sessions() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        with TestClient(app) as client:
+            officer_headers = _login(client, "officer@example.com")
+            specialist_headers = _login(client, "specialist@example.com")
+            request_id, _ = _approved_notam(client, officer_headers, specialist_headers)
+
+            published = client.post(
+                f"/api/v1/requests/{request_id}/publish", headers=officer_headers
+            )
+            assert published.status_code == 200
+            assert published.json()["status"] == "approved"
+    finally:
+        app.dependency_overrides.clear()
+        asyncio.run(engine.dispose())
+
+
+def test_per_channel_mode_lets_aftn_go_real_while_email_stays_simulated(
+    tmp_path, monkeypatch
+) -> None:
+    """The scenario this whole fix exists for: AFTN pointed at real
+    (file-drop) while GCAA_WEB/Email stay simulated, all at once -- not
+    expressible with the old single global publication_mode switch."""
+    from app.api import router as router_module
+
+    monkeypatch.setattr(router_module.settings, "aftn_mode", "async_adapters")
+    monkeypatch.setattr(router_module.settings, "aftn_drop_dir", str(tmp_path / "aftn-outbox"))
+
+    engine, sessions = _prepare(tmp_path, "pub_per_channel.db")
+
+    async def override_session():
+        async with sessions() as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        with TestClient(app) as client:
+            officer_headers = _login(client, "officer@example.com")
+            specialist_headers = _login(client, "specialist@example.com")
+            request_id, notam_id = _approved_notam(client, officer_headers, specialist_headers)
+
+            published = client.post(
+                f"/api/v1/requests/{request_id}/publish", headers=officer_headers
+            )
+            assert published.status_code == 200
+            # AFTN "sent" (file-drop, real) + everything else acknowledged
+            # (still simulated) is not "all acknowledged", so it correctly
+            # stays PUBLISHING rather than either reverting or falsely
+            # claiming PUBLISHED.
+            assert published.json()["status"] == "publishing"
+
+            outbox_files = list((tmp_path / "aftn-outbox").glob("*.aftn.txt"))
+            assert len(outbox_files) == 1
+
+            deliveries = client.get(
+                f"/api/v1/notams/{notam_id}/deliveries", headers=officer_headers
+            ).json()
+            by_channel = {d["channel"]: d["status"] for d in deliveries}
+            assert by_channel["AFTN"] == "sent"
+            assert by_channel["GCAA_WEB"] == "acknowledged"
+            assert by_channel["EMAIL"] == "acknowledged"
     finally:
         app.dependency_overrides.clear()
         asyncio.run(engine.dispose())

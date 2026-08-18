@@ -31,6 +31,14 @@ class Settings(BaseSettings):
     ocr_engine: str = "tesseract"  # "tesseract" | "cloud" | "disabled"
     extraction_enabled: bool = False
     publication_mode: str = "simulated_sync"  # "simulated_sync" | "async_adapters"
+    # Per-channel overrides -- unset (None) falls back to publication_mode
+    # above. A real rollout needs AFTN live while GCAA_WEB/Email stay
+    # simulated (or any other combination) at the same time; one global
+    # switch can't express that, so each channel can be pinned independently
+    # without disturbing the others' default.
+    aftn_mode: str | None = None
+    gcaa_web_mode: str | None = None
+    email_mode: str | None = None
     public_intake_enabled: bool = True
     aip_provider: str = "seed"  # "seed" | "dataset"
     aftn_drop_dir: str = "data/aftn-outbox"
@@ -74,6 +82,14 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    def mode_for_channel(self, channel: str) -> str:
+        override = {
+            "AFTN": self.aftn_mode,
+            "GCAA_WEB": self.gcaa_web_mode,
+            "EMAIL": self.email_mode,
+        }.get(channel)
+        return override or self.publication_mode
 
 
 @lru_cache
