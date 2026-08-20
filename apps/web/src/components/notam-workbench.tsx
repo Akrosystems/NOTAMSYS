@@ -22,13 +22,29 @@ const schema = z.object({
 });
 type FormData = z.infer<typeof schema>;
 
-const defaults: FormData = {
-  series:"A",kind:"NOTAMN",fir:"DGAC",q_code:"QRTCA",traffic:"IV",purpose:"BO",scope:"W",
-  lower_limit:"000",upper_limit:"025",coordinates_radius:"0550N00010W010",item_a:"DGAC",
-  item_b:"2026-08-17T06:00",item_c:"2026-08-20T18:00",item_c_qualifier:"",item_d:"",
-  item_e:"THE FOLLOWING TEMPORARY RESTRICTED AREA ESTABLISHED DUE UNMANNED ACFT FLIGHT: CIRCLE RADIUS 10NM CENTRED ON 0550N 00010W. CTN ADVISED.",
-  item_f:"SFC",item_g:"2500FT AGL",aip_supplement_reference:""
-};
+// Seeds the form from the actual request when no draft has been saved yet
+// (every newly-entered request, before the officer types anything) -- never
+// fall back to a fabricated sample NOTAM here. A previous version used a
+// hardcoded constant for this, which meant every undrafted request showed
+// the same fake NOTAM text/location as if it were real (confirmed live:
+// officers saw identical "TEMPORARY RESTRICTED AREA... UNMANNED ACFT"
+// content on unrelated requests). Fields with no direct source on the
+// request (q_code, traffic, purpose, scope, coordinates_radius, limits)
+// are left blank rather than guessed, since a wrong guess here is worse
+// than an empty required field the officer must fill in.
+function defaultsFromRequest(request: NotamRequest): FormData {
+  return {
+    series: request.requested_series ?? "A", kind: request.requested_kind,
+    fir: "", q_code: "", traffic: "", purpose: "", scope: "",
+    lower_limit: request.lower_limit_sfc ? "000" : "", upper_limit: request.upper_limit_unl ? "999" : "",
+    coordinates_radius: "", item_a: request.location_indicator,
+    item_b: request.start_at ? toLocalInput(request.start_at) : "",
+    item_c: request.end_permanent || !request.end_at ? "" : toLocalInput(request.end_at),
+    item_c_qualifier: request.end_permanent ? "PERM" : request.end_estimated ? "EST" : "",
+    item_d: request.periods_of_activity ?? "", item_e: request.raw_text,
+    item_f: "", item_g: "", aip_supplement_reference: ""
+  };
+}
 
 const EDITABLE_STATUSES: WorkflowStatus[] = ["received", "triage", "draft", "changes_requested"];
 const REVIEW_ROLES = ["ais_specialist", "nof_manager", "system_admin"];
@@ -62,16 +78,17 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
   const [deliveries,setDeliveries]=useState<PublicationDelivery[] | null>(null);
   const [systemStatus,setSystemStatus]=useState<SystemStatus | null>(null);
   const [aipDataset,setAipDataset]=useState<AipDatasetSummary | null>(null);
-  const {register,handleSubmit,watch,reset,formState:{errors}}=useForm<FormData>({resolver:zodResolver(schema),defaultValues:defaults});
+  const {register,handleSubmit,watch,reset,formState:{errors}}=useForm<FormData>({resolver:zodResolver(schema),defaultValues:defaultsFromRequest(request)});
   const values=watch();
   const isEditable = EDITABLE_STATUSES.includes(request.status);
 
   const loadNotam=(onCancelled?:()=>boolean)=>{
     setNotamLoadError(null);
     return getRequestNotam(request.id).then((notam)=>{
-      if(onCancelled?.()||!notam)return;
+      if(onCancelled?.())return;
       setLastDraft(notam);
-      if(EDITABLE_STATUSES.includes(request.status)){
+      if(!EDITABLE_STATUSES.includes(request.status))return;
+      if(notam){
         reset({
           series:notam.series,kind:notam.kind,fir:notam.fir,q_code:notam.q_code,
           traffic:notam.traffic,purpose:notam.purpose,scope:notam.scope,
@@ -80,6 +97,12 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
           item_c_qualifier:notam.item_c_qualifier??"",item_d:notam.item_d??"",item_e:notam.item_e,
           item_f:notam.item_f??"",item_g:notam.item_g??"",aip_supplement_reference:notam.aip_supplement_reference??""
         });
+      } else {
+        // No draft saved yet for this request -- seed from the request's
+        // own data instead of leaving whatever the form last showed
+        // (stale data from a previously viewed request, or the initial
+        // mount defaults) on screen as if it belonged to this one.
+        reset(defaultsFromRequest(request));
       }
     }).catch((err)=>{if(!onCancelled?.())setNotamLoadError(err instanceof Error?err.message:"Couldn't load the prepared NOTAM.")});
   };
