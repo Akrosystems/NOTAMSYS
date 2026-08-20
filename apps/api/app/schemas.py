@@ -281,6 +281,10 @@ class ExtractionPreviewField(BaseModel):
     page: int
 
 
+class QCodeSuggestionRequest(BaseModel):
+    narrative: str = Field(min_length=1, max_length=5000)
+
+
 class ExtractionPreviewResult(BaseModel):
     """Response for POST /extraction/preview -- a stateless read of a
     not-yet-submitted photo/scan, so an officer can pre-fill the intake

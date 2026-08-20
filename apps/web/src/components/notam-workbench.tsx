@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import type { AipDatasetSummary, AuditEventEntry, ExtractionRun, NotamDraftResult, NotamRequest, PublicationDelivery, RuleMatch, SystemStatus, WorkflowStatus } from "@/lib/types";
-import { acceptExtractedField, getAipDataset, getAuditEvents, getDeliveries, getExtraction, getRequestNotam, getRuleByQcode, getSystemStatus, rerunExtraction, retryDelivery, saveDraft, workflowAction } from "@/lib/api";
+import type { AipDatasetSummary, AuditEventEntry, ExtractionRun, NotamDraftResult, NotamRequest, PublicationDelivery, QCodeSuggestion, RuleMatch, SystemStatus, WorkflowStatus } from "@/lib/types";
+import { acceptExtractedField, getAipDataset, getAuditEvents, getDeliveries, getExtraction, getQCodeSuggestions, getRequestNotam, getRuleByQcode, getSystemStatus, rerunExtraction, retryDelivery, saveDraft, workflowAction } from "@/lib/api";
 import { StatusPill } from "./status-pill";
 import { useCurrentUser } from "./user-context";
 
@@ -78,7 +78,8 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
   const [deliveries,setDeliveries]=useState<PublicationDelivery[] | null>(null);
   const [systemStatus,setSystemStatus]=useState<SystemStatus | null>(null);
   const [aipDataset,setAipDataset]=useState<AipDatasetSummary | null>(null);
-  const {register,handleSubmit,watch,reset,formState:{errors}}=useForm<FormData>({resolver:zodResolver(schema),defaultValues:defaultsFromRequest(request)});
+  const [qCodeSuggestions,setQCodeSuggestions]=useState<QCodeSuggestion[]>([]);
+  const {register,handleSubmit,watch,reset,setValue,formState:{errors}}=useForm<FormData>({resolver:zodResolver(schema),defaultValues:defaultsFromRequest(request)});
   const values=watch();
   const isEditable = EDITABLE_STATUSES.includes(request.status);
 
@@ -156,6 +157,30 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
     },350);
     return ()=>{cancelled=true;window.clearTimeout(timer)};
   },[values.q_code]);
+
+  // Q-code suggestions from whatever narrative text is currently in Item E
+  // -- covers both intake paths (typed by hand or seeded from a
+  // photographed form) uniformly, since it reads the live form content
+  // rather than only the original upload. Never applied automatically:
+  // an officer picks one (or ignores all of them), same as the backend
+  // contract in services/extraction/narrative.py. Stops suggesting once a
+  // Q-code is already present, so it doesn't nag over a deliberate choice.
+  useEffect(()=>{
+    if(!isEditable||values.q_code||!values.item_e||values.item_e.trim().length<8){setQCodeSuggestions([]);return}
+    let cancelled=false;
+    const timer=window.setTimeout(()=>{
+      getQCodeSuggestions(values.item_e).then((list)=>{if(!cancelled)setQCodeSuggestions(list)});
+    },500);
+    return ()=>{cancelled=true;window.clearTimeout(timer)};
+  },[values.item_e,values.q_code,isEditable]);
+
+  const applyQCodeSuggestion=(suggestion:QCodeSuggestion)=>{
+    setValue("q_code",suggestion.q_code,{shouldValidate:true,shouldDirty:true});
+    setValue("traffic",suggestion.traffic,{shouldDirty:true});
+    setValue("purpose",suggestion.purpose,{shouldDirty:true});
+    setValue("scope",suggestion.scope,{shouldDirty:true});
+    setQCodeSuggestions([]);
+  };
 
   const runExtraction=async()=>{
     setExtractionBusy(true);setExtractionError(null);
@@ -274,7 +299,9 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
       <section className="editor-pane"><div className="editor-tabs"><button className={tab==="editor"?"active":""} onClick={()=>setTab("editor")}>{isEditable?"NOTAM editor":"Prepared NOTAM"}</button><button className={tab==="validation"?"active":""} onClick={()=>setTab("validation")}>Validation {lastDraft&&!lastDraft.validation_result.valid?<span>{lastDraft.validation_result.errors.length}</span>:null}</button><button className={tab==="history"?"active":""} onClick={()=>setTab("history")}>History</button></div>
       {tab==="editor" && isEditable ?<form onSubmit={submit} className="notam-form">
         <FormSection number="01" title="Identity & classification" copy="Series and message relationship"><div className="field-grid four"><Field label="Series" error={errors.series?.message}><select {...register("series")}><option value="A">Series A · International</option><option value="B">Series B · Local</option></select></Field><Field label="Message type"><select {...register("kind")}><option>NOTAMN</option><option>NOTAMR</option><option>NOTAMC</option></select></Field><Field label="Serial"><input value={lastDraft?`${lastDraft.series}${String(lastDraft.serial_number).padStart(4,"0")}/${String(lastDraft.year%100).padStart(2,"0")}`:"Assigned on save"} readOnly/></Field><Field label="FIR"><input {...register("fir")}/></Field></div></FormSection>
-        <FormSection number="02" title="Q-line selection criteria" copy="ICAO Doc 8126, Part III, Appendix G"><div className="rule-match">
+        <FormSection number="02" title="Q-line selection criteria" copy="ICAO Doc 8126, Part III, Appendix G">
+        {qCodeSuggestions.length>0?<div className="qcode-suggestions"><strong>Suggested Q-codes from Item E — pick one or ignore</strong><div className="qcode-suggestion-list">{qCodeSuggestions.map((suggestion)=><button type="button" key={suggestion.q_code} className="qcode-suggestion-chip" onClick={()=>applyQCodeSuggestion(suggestion)}><code>{suggestion.q_code}</code><span>{suggestion.subject} · {suggestion.condition}</span><small>{suggestion.confidence}%</small></button>)}</div></div>:null}
+        <div className="rule-match">
           <code>{values.q_code}</code>
           <div>
             {ruleStatus==="loading"?<strong>Looking up selection criteria…</strong>:null}

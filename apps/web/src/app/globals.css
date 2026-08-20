@@ -1982,6 +1982,49 @@ td small {
 .rule-match button svg {
   width: 11px;
 }
+.qcode-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 9px 11px;
+  margin-bottom: 10px;
+  border: 1px solid #cfe2ee;
+  border-radius: 8px;
+  background: #eef6fb;
+}
+.qcode-suggestions > strong {
+  font-size: 8px;
+  color: #143f62;
+}
+.qcode-suggestion-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.qcode-suggestion-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid #c6dae8;
+  border-radius: 6px;
+  background: var(--surface);
+  cursor: pointer;
+  text-align: left;
+}
+.qcode-suggestion-chip code {
+  font: 700 11px var(--font-mono);
+  color: #143f62;
+}
+.qcode-suggestion-chip span {
+  font-size: 7px;
+  color: #5d6e7a;
+}
+.qcode-suggestion-chip small {
+  font-size: 7px;
+  color: #1f6092;
+  font-weight: 700;
+}
 .inline-warning {
   display: flex;
   align-items: center;

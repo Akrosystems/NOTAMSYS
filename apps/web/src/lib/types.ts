@@ -219,8 +219,20 @@ export interface ExtractionPreviewField {
 export interface ExtractionPreviewResult {
   fields: ExtractionPreviewField[];
   page_count: number;
-  q_code_suggestions: unknown[];
+  q_code_suggestions: QCodeSuggestion[];
   raw_text: string;
+}
+
+export interface QCodeSuggestion {
+  q_code: string;
+  subject: string;
+  condition: string;
+  traffic: string;
+  purpose: string;
+  scope: string;
+  verification_status: VerificationStatus;
+  score: number;
+  confidence: number;
 }
 
 export interface RuleMatch {

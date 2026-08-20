@@ -174,6 +174,29 @@ def test_preview_extraction_returns_409_when_disabled(tmp_path, monkeypatch) -> 
         asyncio.run(engine.dispose())
 
 
+def test_qcode_suggestions_ranks_matching_rule_first(tmp_path, monkeypatch) -> None:
+    """Covers both the manually-typed and OCR-seeded Item E paths uniformly
+    -- this endpoint works off whatever narrative text is currently in the
+    form, not just an original upload, so it also applies to requests (like
+    hand-delivered ones) that never went through /extraction/preview."""
+    engine = _prepare_client(tmp_path, monkeypatch, extraction_enabled=True)
+    try:
+        with TestClient(app) as client:
+            headers = _login(client)
+            response = client.post(
+                "/api/v1/rules/qcode-suggestions",
+                headers=headers,
+                json={"narrative": "Taxiway A1 closed due wip"},
+            )
+            assert response.status_code == 200
+            suggestions = response.json()
+            assert suggestions
+            assert suggestions[0]["q_code"] == "QMXLC"
+    finally:
+        app.dependency_overrides.clear()
+        asyncio.run(engine.dispose())
+
+
 def test_upload_does_not_extract_when_disabled(tmp_path, monkeypatch) -> None:
     engine = _prepare_client(tmp_path, monkeypatch, extraction_enabled=False)
     try:

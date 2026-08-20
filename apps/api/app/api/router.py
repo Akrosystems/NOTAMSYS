@@ -50,6 +50,7 @@ from app.schemas import (
     NotamRead,
     NotamRequestCreate,
     PublicationDeliveryRead,
+    QCodeSuggestionRequest,
     RefreshRequest,
     RequestRead,
     ReviewAction,
@@ -61,6 +62,7 @@ from app.schemas import (
     ValidationRequest,
 )
 from app.services.aip.provider import default_provider
+from app.services.extraction.narrative import suggest_q_codes
 from app.services.extraction.ocr import build_engine
 from app.services.extraction.orchestrator import run_extraction
 from app.services.extraction.pipeline import run_pipeline
@@ -960,6 +962,17 @@ async def rule_by_qcode(q_code: str, _: CurrentUser) -> dict[str, object]:
     if rule is None:
         raise HTTPException(status_code=404, detail="No selection-criteria rule for that Q-code")
     return {**asdict(rule), "q_code": rule.q_code}
+
+
+@router.post("/rules/qcode-suggestions", tags=["rules"])
+async def qcode_suggestions(payload: QCodeSuggestionRequest, _: CurrentUser) -> list[dict[str, object]]:
+    """Ranked Q-code candidates for whatever narrative text is currently in
+    Item E -- covers both intake paths (typed by hand or seeded from a
+    photographed form's OCR text) uniformly, since it works off the live
+    form content rather than only the original upload. Never a single
+    silent answer: the officer picks one or ignores all of them, same
+    contract as suggest_q_codes() itself."""
+    return suggest_q_codes(payload.narrative)
 
 
 @router.get("/rules/versions", response_model=list[RuleVersionRead], tags=["rules"])

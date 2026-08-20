@@ -13,6 +13,7 @@ import type {
   NotamRequest,
   NotamRequestInput,
   PublicationDelivery,
+  QCodeSuggestion,
   RuleCatalogEntry,
   RuleMatch,
   RuleVersionSummary,
@@ -176,6 +177,11 @@ export async function uploadPublicAttachment(requestId: string, file: File): Pro
 export async function getRuleByQcode(code: string): Promise<RuleMatch | null> {
   try { return await request<RuleMatch>(`/rules/qcode/${code}`); }
   catch { return null; }
+}
+
+export async function getQCodeSuggestions(narrative: string): Promise<QCodeSuggestion[]> {
+  try { return await request<QCodeSuggestion[]>("/rules/qcode-suggestions", { method: "POST", body: JSON.stringify({ narrative }) }); }
+  catch { return []; }
 }
 
 export async function getExtraction(requestId: string): Promise<ExtractionRun | null> {
