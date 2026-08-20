@@ -28,10 +28,6 @@ function applyLimit(normalized: string): { value: string; type: "" | "FL" | "AGL
   return { value: v, type: "", special: false };
 }
 
-const ACTION_TO_KIND: Record<string, NotamRequestFormState["requestedKind"]> = {
-  NEW: "NOTAMN", REPLACE: "NOTAMR", CANCEL: "NOTAMC"
-};
-
 function bestPerField(fields: ExtractionPreviewField[]): Map<string, ExtractionPreviewField> {
   const best = new Map<string, ExtractionPreviewField>();
   for (const field of fields) {
@@ -56,8 +52,13 @@ function applyExtraction(form: NotamRequestFormState, fields: ExtractionPreviewF
   const location = best.get("location_indicator");
   if (location?.normalized_value) set("locationIndicator", location.normalized_value, "Item A) Location");
 
-  const action = best.get("action");
-  if (action?.normalized_value && ACTION_TO_KIND[action.normalized_value]) set("requestedKind", ACTION_TO_KIND[action.normalized_value], "Type of NOTAM");
+  // Deliberately not auto-filled: "action" is which of three printed
+  // checkboxes (New/Replace/Cancel) is physically ticked on the paper form
+  // -- OCR text has no way to see a tick mark, only the label text next to
+  // it, which is present on the page either way. Confirmed live against a
+  // real form: a checked "Cancel" box was reported as "NEW" because that
+  // word simply appears first in reading order. Silently setting the wrong
+  // NOTAM kind is worse than not setting one -- this stays a manual field.
 
   const replaces = best.get("replaces_notam_identifier");
   if (replaces?.normalized_value) set("referencedNotamNumber", replaces.normalized_value, "NOTAM Series & No./Year");
