@@ -338,7 +338,11 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
         </>}
       </div> : null}
       {tab==="validation"?<div className="validation-pane">
-        {!lastDraft?<div className="empty-state"><p>Save a draft to run selection-criteria and format validation.</p></div>:<>
+        {!lastDraft?<>
+          {rule?<div className="validation-row pass"><span><Check/></span><div><strong>{rule.subject} / {rule.condition}</strong><p>Matched selection criteria for {rule.q_code}. Traffic {rule.traffic} · Purpose {rule.purpose} · Scope {rule.scope}. Re-checked in full once a draft is saved.</p></div><small>{rule.source}</small></div>
+          :ruleStatus==="missing"?<div className="empty-state"><p>No controlled selection-criteria mapping for this Q-code yet.</p></div>
+          :<div className="empty-state"><p>Enter a Q-code to see its selection criteria, or save a draft to run full format validation.</p></div>}
+        </>:<>
           <div className="quality-score"><strong>{lastDraft.validation_result.valid?<Check/>:<TriangleAlert/>}</strong><div><h2>{lastDraft.validation_result.valid?"Draft passes validation":"Draft has blocking issues"}</h2><p>{lastDraft.validation_result.errors.length} blocking issue(s) · {lastDraft.validation_result.warnings.length} advisory item(s) · ruleset {lastDraft.ruleset_version}</p></div></div>
           {lastDraft.validation_result.errors.map((message)=><div className="validation-row fail" key={message}><span><TriangleAlert/></span><div><strong>{message}</strong></div></div>)}
           {lastDraft.validation_result.warnings.map((message)=><div className="validation-row warn" key={message}><span><TriangleAlert/></span><div><strong>{message}</strong></div></div>)}
