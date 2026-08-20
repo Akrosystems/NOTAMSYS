@@ -12,6 +12,16 @@ class OcrToken:
     text: str
     confidence: int  # 0-100, engine-reported
     bbox: tuple[int, int, int, int] | None = None  # (left, top, width, height) in pixels
+    # (block, paragraph, line) from the engine's own layout segmentation --
+    # not re-derived from bbox geometry, since Tesseract already computes
+    # this more reliably than a top-coordinate heuristic would. Used to
+    # rejoin tokens with real line breaks (see ingest.py) instead of
+    # flattening a whole page into one space-joined string, which silently
+    # broke every regex that relies on "until the next newline" to know
+    # where one paper-form field ends and the next begins (confirmed live:
+    # the originator-block fields on a real photographed form each bled
+    # into the next one once line structure was lost).
+    line_id: tuple[int, int, int] = (0, 0, 0)
 
 
 class OcrEngine(Protocol):
@@ -70,7 +80,8 @@ class TesseractOcr:
                 continue
             confidence = int(data["conf"][i]) if str(data["conf"][i]).lstrip("-").isdigit() else 0
             bbox = (data["left"][i], data["top"][i], data["width"][i], data["height"][i])
-            tokens.append(OcrToken(text=text, confidence=max(confidence, 0), bbox=bbox))
+            line_id = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+            tokens.append(OcrToken(text=text, confidence=max(confidence, 0), bbox=bbox, line_id=line_id))
         return tokens
 
 

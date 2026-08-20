@@ -48,6 +48,33 @@ def test_run_pipeline_falls_back_to_ocr_for_image_without_text_layer() -> None:
     # correctly finds nothing -- proving the pipeline doesn't fabricate a match.
 
 
+def test_ocr_tokens_are_rejoined_by_line_not_flattened_to_one_string() -> None:
+    """Regression test for a real bug found live: OCR tokens used to be
+    joined with a single space regardless of layout, which flattened the
+    whole page into one line. The paper form's originator-block regexes
+    match "until the next newline" -- with no newlines left, "Name" bled
+    into "Organisation" and beyond, confirmed against a real photographed
+    form (Tesseract, not NullOcr) before this fix existed."""
+    from app.services.extraction.ocr import OcrToken
+
+    image_bytes = b"fake-photo-bytes"
+    engine = NullOcr()
+    engine.register(
+        image_bytes,
+        [
+            OcrToken(text="Name:", confidence=90, line_id=(1, 1, 1)),
+            OcrToken(text="Tamale", confidence=90, line_id=(1, 1, 1)),
+            OcrToken(text="Airport", confidence=90, line_id=(1, 1, 1)),
+            OcrToken(text="Organisation:", confidence=90, line_id=(1, 1, 2)),
+            OcrToken(text="Tamale", confidence=90, line_id=(1, 1, 2)),
+        ],
+    )
+    result = run_pipeline(image_bytes, "image/jpeg", engine)
+    name_field = next(f for f in result.fields if f.field_name == "originator_name")
+    assert name_field.normalized_value == "Tamale Airport"
+    assert "Organisation" not in (name_field.normalized_value or "")
+
+
 def test_run_pipeline_plain_text_attachment() -> None:
     result = run_pipeline(b"Location: DGLE\nFull Text Runway 05/23 strip WIP.", "text/plain", NullOcr())
     assert result.page_count == 1
