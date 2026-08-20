@@ -220,6 +220,7 @@ export interface ExtractionPreviewResult {
   fields: ExtractionPreviewField[];
   page_count: number;
   q_code_suggestions: unknown[];
+  raw_text: string;
 }
 
 export interface RuleMatch {

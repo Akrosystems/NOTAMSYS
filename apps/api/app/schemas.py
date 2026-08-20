@@ -293,6 +293,7 @@ class ExtractionPreviewResult(BaseModel):
     fields: list[ExtractionPreviewField]
     page_count: int
     q_code_suggestions: list[dict[str, object]]
+    raw_text: str = ""
 
 
 class FirRead(ORMModel):

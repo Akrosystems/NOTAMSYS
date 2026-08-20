@@ -24,6 +24,13 @@ class ExtractionResult:
     fields: list[ExtractedFieldCandidate]
     page_count: int
     q_code_suggestions: list[dict[str, object]]
+    # What the engine actually recognized, concatenated across pages. Lets a
+    # caller show "here's what was read" when field-anchored parsing finds
+    # nothing to attach a value to -- the difference between "OCR read this
+    # page fine but my regex didn't match" and "OCR produced garbage" is
+    # otherwise invisible, both to an officer and to debugging a real
+    # extraction failure after the fact.
+    raw_text: str = ""
 
     @property
     def overall_confidence(self) -> int:
@@ -36,6 +43,7 @@ class ExtractionResult:
             "fields": [dataclasses.asdict(field) for field in self.fields],
             "page_count": self.page_count,
             "q_code_suggestions": self.q_code_suggestions,
+            "raw_text": self.raw_text,
         }
 
 
@@ -56,4 +64,9 @@ def run_pipeline(content: bytes, media_type: str, engine: OcrEngine) -> Extracti
         fields.extend(dataclasses.replace(candidate, page=page.number) for candidate in page_candidates)
 
     suggestions = suggest_q_codes(" ".join(narrative_parts)) if narrative_parts else []
-    return ExtractionResult(fields=fields, page_count=len(pages), q_code_suggestions=suggestions)
+    return ExtractionResult(
+        fields=fields,
+        page_count=len(pages),
+        q_code_suggestions=suggestions,
+        raw_text="\n\n".join(narrative_parts),
+    )
