@@ -3,12 +3,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 # tesseract-ocr is the actual OCR engine pytesseract shells out to -- a
 # system binary, not a Python package, so it has to be installed here
-# explicitly rather than via pip. tesseract-ocr-eng is listed explicitly
-# rather than relied on as a "Recommends" of tesseract-ocr, since
-# --no-install-recommends would otherwise silently skip English trained
-# data and every OCR call would fail at runtime with a missing-data error.
+# explicitly rather than via pip. tesseract-ocr-eng and tesseract-ocr-osd
+# are listed explicitly rather than relied on as "Recommends" of
+# tesseract-ocr, since --no-install-recommends would otherwise silently
+# skip them: without -eng, every OCR call fails at runtime with a missing
+# language-data error; without -osd, orientation detection (see
+# services/extraction/ocr.py's image_to_osd call, which corrects a
+# genuinely sideways phone photo with no EXIF orientation tag) silently
+# no-ops instead of failing loudly, since that call's own error handling
+# treats "OSD unavailable" the same as "OSD inconclusive".
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd \
     && rm -rf /var/lib/apt/lists/*
 COPY pyproject.toml ./
 COPY app ./app

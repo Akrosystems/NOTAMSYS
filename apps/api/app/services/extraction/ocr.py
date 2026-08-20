@@ -4,7 +4,10 @@ can be swapped without touching the pipeline that calls it.
 """
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,41 @@ class NullOcr:
         return list(self._fixtures.get(image_bytes, []))
 
 
+def preprocess_for_ocr(image: "Image.Image") -> "Image.Image":
+    """Orientation-correct, grayscale and contrast-normalize before OCR --
+    pure PIL, no tesseract binary involved, so this much of the pipeline is
+    testable without one (unlike the OSD-based rotation fix below, which
+    needs the real binary).
+
+    Confirmed live against real phone photos: with none of this, OCR on a
+    WhatsApp-compressed photo of a hand-filled form recognized almost
+    nothing usable. A cloud-vision alternative was evaluated and rejected
+    for a worse reason than accuracy -- it hallucinated fluent, plausible,
+    completely wrong text instead of failing obviously, which is a more
+    dangerous failure mode for a safety-of-flight document than Tesseract's
+    garbled-but-visibly-wrong output. This preprocessing keeps everything
+    local and pushes on Tesseract's own accuracy instead.
+    """
+    from PIL import ImageOps
+
+    # Correct orientation the camera recorded in EXIF, if present -- many
+    # messaging apps strip this tag, but it's a free, always-correct fix
+    # when it survives. Residual rotation with no EXIF tag at all is
+    # handled separately via Tesseract's own OSD (see recognize_page),
+    # which needs the real binary and can't be covered by a PIL-only test.
+    image = ImageOps.exif_transpose(image) or image
+    image = image.convert("L")  # grayscale -- normalizes color/lighting noise
+    image = ImageOps.autocontrast(image)  # stretches contrast for uneven lighting/shadows
+
+    # Tesseract's accuracy drops sharply once character height falls much
+    # below ~20-30px; a compressed phone photo of a full page can leave
+    # individual characters only a few pixels tall.
+    if image.width < 1500:
+        scale = 1500 / image.width
+        image = image.resize((round(image.width * scale), round(image.height * scale)))
+    return image
+
+
 class TesseractOcr:
     """Local OCR via the `tesseract` binary through pytesseract. Requires
     both the `ocr` extra (pip install -e ".[ocr]") and the tesseract
@@ -73,6 +111,24 @@ class TesseractOcr:
         import io
 
         image = Image.open(io.BytesIO(image_bytes))
+        image = preprocess_for_ocr(image)
+
+        # Correct residual rotation (a genuinely sideways photo with no
+        # EXIF orientation tag) using Tesseract's own orientation-and-
+        # script detection. Needs the osd traineddata file (see
+        # apps/api/Dockerfile's tesseract-ocr-osd) and the real binary.
+        # OSD needs enough recognizable text to work with and raises on
+        # sparse/noisy input -- that failure means "couldn't tell", not an
+        # error, so orientation is just left as-is rather than the whole
+        # request failing.
+        try:
+            osd = pytesseract.image_to_osd(image, output_type=pytesseract.Output.DICT)
+            rotation = int(osd.get("rotate", 0) or 0)
+            if rotation:
+                image = image.rotate(-rotation, expand=True)
+        except pytesseract.pytesseract.TesseractError:
+            pass
+
         data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
         tokens: list[OcrToken] = []
         for i, text in enumerate(data["text"]):
