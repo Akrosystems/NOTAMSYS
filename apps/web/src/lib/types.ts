@@ -207,6 +207,21 @@ export interface ExtractionRun {
   fields: ExtractedField[];
 }
 
+export interface ExtractionPreviewField {
+  field_name: string;
+  raw_text: string;
+  normalized_value: string | null;
+  confidence: number;
+  extractor: string;
+  page: number;
+}
+
+export interface ExtractionPreviewResult {
+  fields: ExtractionPreviewField[];
+  page_count: number;
+  q_code_suggestions: unknown[];
+}
+
 export interface RuleMatch {
   subject_code: string;
   subject: string;

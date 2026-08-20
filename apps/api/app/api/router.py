@@ -41,6 +41,7 @@ from app.schemas import (
     BrandingUpdate,
     DashboardSummary,
     ExtractedFieldRead,
+    ExtractionPreviewResult,
     ExtractionRunRead,
     FieldAcceptRequest,
     FirRead,
@@ -60,7 +61,9 @@ from app.schemas import (
     ValidationRequest,
 )
 from app.services.aip.provider import default_provider
+from app.services.extraction.ocr import build_engine
 from app.services.extraction.orchestrator import run_extraction
+from app.services.extraction.pipeline import run_pipeline
 from app.services.publication.orchestrator import dispatch_delivery
 from app.services.publication.registry import CHANNELS
 from app.services.rules import canonical_checksum, get_catalog, reload_catalog, validate_selection
@@ -465,6 +468,35 @@ async def rerun_extraction(
     )
     assert reloaded is not None
     return reloaded
+
+
+@router.post(
+    "/extraction/preview",
+    response_model=ExtractionPreviewResult,
+    tags=["extraction"],
+)
+async def preview_extraction(
+    user: Annotated[
+        User, Depends(require_roles(Role.AIS_OFFICER, Role.AIS_SPECIALIST, Role.NOF_MANAGER))
+    ],
+    file: UploadFile = File(...),
+) -> ExtractionPreviewResult:
+    """Stateless read of a photo/scan before a request exists -- lets the
+    intake form pre-fill itself from a hard-copy GCAA-AIS-NTM-FR01 the
+    moment it's photographed, instead of only extracting for reference
+    after the officer has already retyped everything. Nothing is persisted
+    here (no Attachment/ExtractionRun row); the real, audited extraction
+    still runs again on submit via the normal upload_attachment path."""
+    if not settings.extraction_enabled:
+        raise HTTPException(status_code=409, detail="Document extraction is not enabled")
+    content = await file.read()
+    media_type = file.content_type or "application/octet-stream"
+    engine = build_engine(settings.ocr_engine)
+    try:
+        result = run_pipeline(content, media_type, engine)
+    except ValueError as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
+    return ExtractionPreviewResult(**result.as_dict())
 
 
 @router.post(

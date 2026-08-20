@@ -272,6 +272,29 @@ class FieldAcceptRequest(BaseModel):
     value: str | None = Field(default=None, max_length=2000)
 
 
+class ExtractionPreviewField(BaseModel):
+    field_name: str
+    raw_text: str
+    normalized_value: str | None
+    confidence: int
+    extractor: str
+    page: int
+
+
+class ExtractionPreviewResult(BaseModel):
+    """Response for POST /extraction/preview -- a stateless read of a
+    not-yet-submitted photo/scan, so an officer can pre-fill the intake
+    form from a hard-copy GCAA-AIS-NTM-FR01 before creating the request.
+    Nothing here is persisted (no Attachment, no ExtractionRun): the file
+    is uploaded and extracted again for the permanent audit record once
+    the officer actually submits, exactly as it already was before this
+    endpoint existed."""
+
+    fields: list[ExtractionPreviewField]
+    page_count: int
+    q_code_suggestions: list[dict[str, object]]
+
+
 class FirRead(ORMModel):
     id: uuid.UUID
     icao_code: str

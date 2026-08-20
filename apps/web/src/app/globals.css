@@ -1146,6 +1146,15 @@ td small {
   font-size: 8px;
   color: var(--muted);
 }
+.intake-prefill-note {
+  margin: 0 18px 14px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: var(--accent-tint);
+  color: var(--accent-hover);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .intake-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;

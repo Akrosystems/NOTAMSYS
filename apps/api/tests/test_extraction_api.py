@@ -115,6 +115,65 @@ def test_upload_triggers_extraction_when_enabled(tmp_path, monkeypatch) -> None:
         asyncio.run(engine.dispose())
 
 
+def test_preview_extraction_reads_a_photo_without_creating_a_request(tmp_path, monkeypatch) -> None:
+    """The point of /extraction/preview: an officer photographs a hard-copy
+    GCAA-AIS-NTM-FR01 and gets field candidates back before a NotamRequest
+    exists at all -- no Attachment, no ExtractionRun, nothing persisted."""
+    engine = _prepare_client(tmp_path, monkeypatch, extraction_enabled=True)
+    try:
+        with TestClient(app) as client:
+            headers = _login(client)
+            form_text = (
+                "Location: DGAA\n"
+                "New\n"
+                "Name: Ghana Airports Company\n"
+                "Organisation: GCAA AIS\n"
+                "Full Text\n"
+                "Taxiway M closed due to work in progress.\n"
+                "Lower Limit\nSFC\n"
+                "Upper Limit\nUNL\n"
+            )
+            pdf_bytes = _build_pdf(form_text)
+
+            preview = client.post(
+                "/api/v1/extraction/preview",
+                headers=headers,
+                files={"file": ("hardcopy.pdf", pdf_bytes, "application/pdf")},
+            )
+            assert preview.status_code == 200
+            body = preview.json()
+            assert body["page_count"] == 1
+            field_names = {f["field_name"] for f in body["fields"]}
+            assert "location_indicator" in field_names
+            assert "originator_name" in field_names
+            location = next(f for f in body["fields"] if f["field_name"] == "location_indicator")
+            assert location["normalized_value"] == "DGAA"
+
+            # Nothing was persisted -- no request, no attachment, no run.
+            requests = client.get("/api/v1/requests", headers=headers).json()
+            assert requests == []
+    finally:
+        app.dependency_overrides.clear()
+        asyncio.run(engine.dispose())
+
+
+def test_preview_extraction_returns_409_when_disabled(tmp_path, monkeypatch) -> None:
+    engine = _prepare_client(tmp_path, monkeypatch, extraction_enabled=False)
+    try:
+        with TestClient(app) as client:
+            headers = _login(client)
+            pdf_bytes = _build_pdf("Location: DGAA")
+            preview = client.post(
+                "/api/v1/extraction/preview",
+                headers=headers,
+                files={"file": ("hardcopy.pdf", pdf_bytes, "application/pdf")},
+            )
+            assert preview.status_code == 409
+    finally:
+        app.dependency_overrides.clear()
+        asyncio.run(engine.dispose())
+
+
 def test_upload_does_not_extract_when_disabled(tmp_path, monkeypatch) -> None:
     engine = _prepare_client(tmp_path, monkeypatch, extraction_enabled=False)
     try:

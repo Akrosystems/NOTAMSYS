@@ -7,6 +7,7 @@ import type {
   BrandingUpdateInput,
   DashboardSummary,
   DraftPayload,
+  ExtractionPreviewResult,
   ExtractionRun,
   NotamDraftResult,
   NotamRequest,
@@ -183,6 +184,22 @@ export async function getExtraction(requestId: string): Promise<ExtractionRun | 
 
 export async function rerunExtraction(requestId: string): Promise<ExtractionRun> {
   return request<ExtractionRun>(`/requests/${requestId}/extraction/rerun`, { method: "POST" });
+}
+
+// Stateless read of a photo/scan before a request exists -- lets the intake
+// form pre-fill itself from a photographed hard-copy GCAA-AIS-NTM-FR01. No
+// Attachment/ExtractionRun is created; the file is uploaded and extracted
+// again for the real audit record once the officer actually submits.
+export async function previewExtraction(file: File): Promise<ExtractionPreviewResult> {
+  const auth = await authHeader();
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${API_URL}/extraction/preview`, { method: "POST", headers: auth, body, cache: "no-store" });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(typeof detail.detail === "string" ? detail.detail : "Could not read the document.");
+  }
+  return response.json();
 }
 
 export async function acceptExtractedField(fieldId: string, value?: string): Promise<unknown> {
