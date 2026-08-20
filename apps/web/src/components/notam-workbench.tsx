@@ -35,7 +35,13 @@ type FormData = z.infer<typeof schema>;
 function defaultsFromRequest(request: NotamRequest): FormData {
   return {
     series: request.requested_series ?? "A", kind: request.requested_kind,
-    fir: "", q_code: "", traffic: "", purpose: "", scope: "",
+    // GCAA administers exactly one FIR (confirmed live: GET /reference/firs
+    // returns a single "DGAC" / Accra FIR row) -- defaulting to it isn't a
+    // guess about this request's content, it's a fixed fact of what this
+    // deployment serves, same as before this file seeded from a hardcoded
+    // constant. Q-code/traffic/purpose/scope stay blank: those genuinely
+    // depend on the request's content and have no single correct default.
+    fir: "DGAC", q_code: "", traffic: "", purpose: "", scope: "",
     lower_limit: request.lower_limit_sfc ? "000" : "", upper_limit: request.upper_limit_unl ? "999" : "",
     coordinates_radius: "", item_a: request.location_indicator,
     item_b: request.start_at ? toLocalInput(request.start_at) : "",
