@@ -178,7 +178,10 @@ def test_qcode_suggestions_ranks_matching_rule_first(tmp_path, monkeypatch) -> N
     """Covers both the manually-typed and OCR-seeded Item E paths uniformly
     -- this endpoint works off whatever narrative text is currently in the
     form, not just an original upload, so it also applies to requests (like
-    hand-delivered ones) that never went through /extraction/preview."""
+    hand-delivered ones) that never went through /extraction/preview.
+    "wip" also genuinely matches taxiway/work-in-progress (QMXHW) once
+    abbreviation expansion is in place, so this checks membership rather
+    than a specific rank -- both are honestly true of the text."""
     engine = _prepare_client(tmp_path, monkeypatch, extraction_enabled=True)
     try:
         with TestClient(app) as client:
@@ -190,8 +193,41 @@ def test_qcode_suggestions_ranks_matching_rule_first(tmp_path, monkeypatch) -> N
             )
             assert response.status_code == 200
             suggestions = response.json()
-            assert suggestions
-            assert suggestions[0]["q_code"] == "QMXLC"
+            assert "QMXLC" in {item["q_code"] for item in suggestions}
+    finally:
+        app.dependency_overrides.clear()
+        asyncio.run(engine.dispose())
+
+
+def test_qcode_suggestions_expands_icao_abbreviations(tmp_path, monkeypatch) -> None:
+    """Real documents from the field (an AFTN-received NOTAM proposal and a
+    hand-filled GCAA-AIS-NTM-FR01) both use standard ICAO abbreviations
+    rather than the catalog's spelled-out wording -- confirmed live that
+    the unexpanded engine missed the correct rule entirely on both and
+    surfaced unrelated ones instead (DME/ILS frequency change; surveillance
+    radar) from coincidental single-word overlap."""
+    engine = _prepare_client(tmp_path, monkeypatch, extraction_enabled=True)
+    try:
+        with TestClient(app) as client:
+            headers = _login(client)
+            ils = client.post(
+                "/api/v1/rules/qcode-suggestions",
+                headers=headers,
+                json={"narrative": "ILS RWY22, LOC PART FREQ 110.1 MHZ U/S DUE TO MAINT."},
+            ).json()
+            assert "QILAS" in {item["q_code"] for item in ils}
+
+            wip = client.post(
+                "/api/v1/rules/qcode-suggestions",
+                headers=headers,
+                json={
+                    "narrative": "WIP ON EAST SIDE OF RWY 05/23 STRIP. "
+                    "PRESENCE OF EQUIPMENT AND PERSONNEL CN ADVISED."
+                },
+            ).json()
+            wip_codes = {item["q_code"] for item in wip}
+            assert "QMRHW" in wip_codes
+            assert "QMWHW" in wip_codes
     finally:
         app.dependency_overrides.clear()
         asyncio.run(engine.dispose())
