@@ -106,9 +106,11 @@ async def create_draft(
     if len(draft.item_a) == 4 and draft.item_a.isalpha():
         try:
             aerodromes = await default_provider().list_aerodromes(session)
+            firs = await default_provider().list_firs(session)
         except NotImplementedError:
             aerodromes = []
-        known_codes = {aerodrome.icao_code for aerodrome in aerodromes}
+            firs = []
+        known_codes = {a.icao_code for a in aerodromes} | {f.icao_code for f in firs}
         if known_codes and draft.item_a.upper() not in known_codes:
             warnings.append(
                 f"Item A location indicator {draft.item_a.upper()} was not found in the "

@@ -94,14 +94,69 @@ async def seed() -> None:
         existing = await session.scalar(select(User).limit(1))
         if not existing:
             await _seed_users_and_reference_data(session)
-        # Independently idempotent (keyed on request_number + notam is None,
-        # or on email), not gated behind `existing` -- so a second
+        # Independently idempotent, not gated behind `existing` -- so a second
         # `python -m app.seed` run against an already-seeded database (e.g.
-        # backfilling production after either function was added) still
+        # backfilling production after datasets or functions were added) still
         # fills these in instead of being a permanent no-op.
+        await _seed_aip_reference_data(session)
         await _seed_sample_notam_drafts(session)
         await _seed_email_intake_user(session)
         await session.commit()
+
+
+async def _seed_aip_reference_data(session: AsyncSession) -> None:
+    aip_payload = load_aip_payload("ghana_aip_2026.json")
+    version = aip_payload["version"]
+    existing = await session.scalar(select(AipDataset).where(AipDataset.version == version))
+    if existing and existing.active:
+        return
+
+    # Deactivate older datasets
+    all_datasets = (await session.scalars(select(AipDataset))).all()
+    for ds in all_datasets:
+        ds.active = False
+
+    if existing:
+        existing.active = True
+        await session.flush()
+        return
+
+    aip_dataset = AipDataset(
+        version=version,
+        source=aip_payload["source"],
+        checksum=aip_checksum(aip_payload),
+        active=True,
+    )
+    session.add(aip_dataset)
+    await session.flush()
+
+    firs_by_code: dict[str, Fir] = {}
+    for row in aip_payload["firs"]:
+        fir = Fir(
+            dataset_id=aip_dataset.id,
+            icao_code=row["icao_code"],
+            name=row["name"],
+            provenance=row["provenance"],
+        )
+        session.add(fir)
+        firs_by_code[row["icao_code"]] = fir
+    await session.flush()
+
+    for row in aip_payload["aerodromes"]:
+        session.add(
+            Aerodrome(
+                dataset_id=aip_dataset.id,
+                icao_code=row["icao_code"],
+                iata_code=row.get("iata_code"),
+                name=row["name"],
+                fir_id=firs_by_code[row["fir_code"]].id if row.get("fir_code") else None,
+                arp_latitude=row.get("arp_latitude"),
+                arp_longitude=row.get("arp_longitude"),
+                elevation_ft=row.get("elevation_ft"),
+                provenance=row["provenance"],
+            )
+        )
+    await session.flush()
 
 
 async def _seed_users_and_reference_data(session: AsyncSession) -> None:

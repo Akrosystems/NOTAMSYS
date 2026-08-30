@@ -403,7 +403,7 @@ class AipDataset(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     version: Mapped[str] = mapped_column(String(40), unique=True)
-    source: Mapped[str] = mapped_column(String(40))  # "seed" | "eaip" | "aixm"
+    source: Mapped[str] = mapped_column(String(300))
     effective_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     checksum: Mapped[str] = mapped_column(String(64))
     active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
