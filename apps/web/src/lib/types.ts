@@ -22,6 +22,18 @@ export interface UserCreateInput {
   password: string;
 }
 
+export interface UserPresence {
+  id: string;
+  email: string;
+  full_name: string;
+  role: Role;
+  organization?: string | null;
+  is_active: boolean;
+  last_seen_at?: string | null;
+  is_online: boolean;
+  status_label: "Online" | "Away" | "Offline";
+}
+
 export interface UserUpdateInput {
   role?: Role;
   is_active?: boolean;

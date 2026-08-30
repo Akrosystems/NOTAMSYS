@@ -28,7 +28,20 @@ class UserRead(ORMModel):
     role: Role
     organization: str | None
     is_active: bool
+    last_seen_at: datetime | None = None
     created_at: datetime
+
+
+class UserPresenceRead(BaseModel):
+    id: uuid.UUID
+    email: str
+    full_name: str
+    role: Role
+    organization: str | None
+    is_active: bool
+    last_seen_at: datetime | None
+    is_online: bool
+    status_label: str
 
 
 class UserCreate(BaseModel):

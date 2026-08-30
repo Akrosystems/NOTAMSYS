@@ -44,6 +44,8 @@ ENDPOINT_ROLE_MATRIX: list[tuple[str, str, set[Role], dict[str, object] | None]]
     ("POST", "/admin/users", {Role.SYSTEM_ADMIN}, {"email": "new@example.com", "full_name": "New User", "role": "ais_officer", "password": "SafePassword!26"}),
     ("PATCH", "/admin/users/{id}", {Role.SYSTEM_ADMIN}, {"is_active": False}),
     ("PATCH", "/admin/branding", {Role.SYSTEM_ADMIN}, {"org_name": "Test Org"}),
+    # Note: /users/presence (GET) and /users/heartbeat (POST) are role-unrestricted
+    # (CurrentUser only, no require_roles) so all authenticated roles return 200 -- not in this matrix.
 ]
 
 

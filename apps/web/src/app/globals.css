@@ -619,6 +619,156 @@ img.brand-mark {
   font-size: 11px;
   font-weight: 700;
 }
+/* ── Presence panel ────────────────────────────────────────────── */
+.presence-button {
+  position: relative;
+}
+.presence-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 300px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 40;
+  overflow: hidden;
+}
+.presence-panel-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--soft);
+}
+.presence-panel-header strong {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+.presence-panel-header span {
+  font-size: 9px;
+  color: var(--muted);
+}
+.presence-online-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--green);
+}
+.presence-online-count::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse-green 2s infinite;
+}
+@keyframes pulse-green {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.presence-user-list {
+  max-height: 380px;
+  overflow-y: auto;
+}
+.presence-user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.presence-user-row:last-child {
+  border-bottom: none;
+}
+.presence-avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.presence-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #dbe9f4;
+  color: #143a59;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+.presence-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+}
+.presence-dot.online { background: var(--green); }
+.presence-dot.away { background: var(--amber); }
+.presence-dot.offline { background: #b0bcca; }
+.presence-user-info {
+  flex: 1;
+  min-width: 0;
+}
+.presence-user-info strong {
+  display: block;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.presence-user-info small {
+  display: block;
+  font-size: 8px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+.presence-status-label {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.presence-status-label.online {
+  background: rgba(62, 192, 144, 0.12);
+  color: var(--green);
+}
+.presence-status-label.away {
+  background: rgba(227, 169, 75, 0.12);
+  color: var(--amber);
+}
+.presence-status-label.offline {
+  background: var(--soft);
+  color: var(--muted);
+}
+.presence-button-icon {
+  position: relative;
+}
+.presence-button-icon .online-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 1.5px solid var(--surface);
+}
+.presence-last-seen {
+  font-size: 7.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
 .page-container {
   padding: 28px 30px 35px;
 }

@@ -62,6 +62,7 @@ from app.schemas import (
     RuleVersionRead,
     TokenPair,
     UserCreate,
+    UserPresenceRead,
     UserRead,
     UserUpdate,
     ValidationRequest,
@@ -1529,6 +1530,51 @@ async def update_user(
     await session.commit()
     await session.refresh(target)
     return target
+
+
+@router.get("/users/presence", response_model=list[UserPresenceRead], tags=["users"])
+async def get_users_presence(session: Session, _: CurrentUser) -> list[dict[str, object]]:
+    """Returns presence status and last seen timestamp of all active personnel."""
+    users = (
+        await session.scalars(
+            select(User).where(User.is_active.is_(True)).order_by(User.full_name.asc())
+        )
+    ).all()
+    # Use naive UTC (strip tzinfo) — SQLite stores without tzinfo; mixing aware/naive raises TypeError.
+    now = datetime.now(UTC).replace(tzinfo=None)
+    results: list[dict[str, object]] = []
+    for u in users:
+        is_online = False
+        status_label = "Offline"
+        if u.last_seen_at:
+            diff_secs = (now - u.last_seen_at).total_seconds()
+            if diff_secs <= 300:  # within 5 minutes
+                is_online = True
+                status_label = "Online"
+            elif diff_secs <= 1800:  # within 30 minutes
+                status_label = "Away"
+        results.append(
+            {
+                "id": u.id,
+                "email": u.email,
+                "full_name": u.full_name,
+                "role": u.role,
+                "organization": u.organization,
+                "is_active": u.is_active,
+                "last_seen_at": u.last_seen_at,
+                "is_online": is_online,
+                "status_label": status_label,
+            }
+        )
+    return results
+
+
+@router.post("/users/heartbeat", tags=["users"])
+async def user_heartbeat(session: Session, user: CurrentUser) -> dict[str, str]:
+    """Heartbeat signal to keep user online status fresh."""
+    user.last_seen_at = datetime.now(UTC).replace(tzinfo=None)
+    await session.commit()
+    return {"status": "ok"}
 
 
 ALLOWED_LOGO_TYPES = {"image/png", "image/jpeg", "image/webp", "image/svg+xml"}

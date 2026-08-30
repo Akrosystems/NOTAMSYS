@@ -1,11 +1,11 @@
 "use client";
 
-import { Bell, Check, ChevronDown, Clock3, Copy, LogOut, Menu, Moon, Share2, Sun } from "lucide-react";
+import { Bell, Check, ChevronDown, Clock3, Copy, LogOut, Menu, Moon, Share2, Sun, Users } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { getAuditEvents } from "@/lib/api";
+import { getAuditEvents, getUsersPresence, sendHeartbeat } from "@/lib/api";
 import { formatUtcDateTime } from "@/lib/time";
-import type { AuditEventEntry } from "@/lib/types";
+import type { AuditEventEntry, UserPresence } from "@/lib/types";
 import { useCurrentUser } from "./user-context";
 
 const labels: Record<string, string> = {
@@ -47,6 +47,101 @@ function ThemeToggle() {
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[parts.length - 1]?.[0] ?? "")).toUpperCase();
+}
+
+function formatLastSeen(ts: string | null | undefined): string {
+  if (!ts) return "Never";
+  const diff = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
+  if (diff < 60) return "Just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function PresencePanel() {
+  const [open, setOpen] = useState(false);
+  const [users, setUsers] = useState<UserPresence[] | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
+
+  const load = () => getUsersPresence().then(setUsers).catch(() => setUsers([]));
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next) load();
+  };
+
+  // Refresh presence list every 30s while panel is open
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setInterval(load, 30_000);
+    return () => clearInterval(timer);
+  }, [open]);
+
+  // Send heartbeat every 60s to keep current user online
+  useEffect(() => {
+    sendHeartbeat();
+    const timer = window.setInterval(sendHeartbeat, 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const onlineCount = users?.filter((u) => u.is_online).length ?? 0;
+
+  return (
+    <div className="presence-button" ref={ref}>
+      <button className="icon-button presence-button-icon" aria-label="Team presence" onClick={toggle} id="topbar-presence-btn">
+        <Users />
+        {onlineCount > 0 ? <span className="online-badge" /> : null}
+      </button>
+      {open ? (
+        <div className="presence-panel" role="dialog" aria-label="Team presence">
+          <div className="presence-panel-header">
+            <strong>Team Presence</strong>
+            {users !== null ? (
+              <span className="presence-online-count">{onlineCount} online</span>
+            ) : (
+              <span>Loading…</span>
+            )}
+          </div>
+          <div className="presence-user-list">
+            {users === null ? (
+              <div style={{ padding: "14px", fontSize: "10px", color: "var(--muted)" }}>Loading…</div>
+            ) : users.length === 0 ? (
+              <div style={{ padding: "14px", fontSize: "10px", color: "var(--muted)" }}>No active users.</div>
+            ) : (
+              users.map((u) => {
+                const statusLower = u.status_label.toLowerCase() as "online" | "away" | "offline";
+                return (
+                  <div className="presence-user-row" key={u.id}>
+                    <div className="presence-avatar-wrap">
+                      <div className="presence-avatar">{initials(u.full_name)}</div>
+                      <span className={`presence-dot ${statusLower}`} />
+                    </div>
+                    <div className="presence-user-info">
+                      <strong>{u.full_name}</strong>
+                      <small>{ROLE_LABEL[u.role] ?? u.role}</small>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <span className={`presence-status-label ${statusLower}`}>{u.status_label}</span>
+                      <div className="presence-last-seen">{formatLastSeen(u.last_seen_at)}</div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function ShareIntakeLink() {
@@ -161,6 +256,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
       <div className="topbar-actions">
         <div className="utc-clock"><Clock3/><span><small>UTC</small><strong>{clock}</strong></span></div>
         <ThemeToggle />
+        <PresencePanel />
         <ShareIntakeLink />
         <ActivityBell />
         <UserMenu />

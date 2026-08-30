@@ -15,6 +15,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 _service_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
+from datetime import UTC, datetime
+
+
 async def get_current_user(
     token: str = Depends(oauth2_scheme), session: AsyncSession = Depends(get_session)
 ) -> User:
@@ -29,6 +32,15 @@ async def get_current_user(
             detail="Invalid or inactive session",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Throttled update of last_seen_at (at most once every 30 seconds per session).
+    # Store as naive UTC (strip tzinfo) because SQLite doesn't preserve timezone info;
+    # comparing an aware datetime against a naive one raises TypeError.
+    now_naive = datetime.now(UTC).replace(tzinfo=None)
+    if user.last_seen_at is None or (now_naive - user.last_seen_at).total_seconds() > 30:
+        user.last_seen_at = now_naive
+        await session.commit()
+
     return user
 
 

@@ -22,6 +22,7 @@ import type {
   SystemStatus,
   User,
   UserCreateInput,
+  UserPresence,
   UserUpdateInput,
   WorkflowStatus
 } from "./types";
@@ -377,4 +378,20 @@ export async function createUser(payload: UserCreateInput): Promise<AdminUser> {
 
 export async function updateUser(id: string, payload: UserUpdateInput): Promise<AdminUser> {
   return request<AdminUser>(`/admin/users/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+}
+
+export async function getUsersPresence(): Promise<UserPresence[]> {
+  try {
+    return await request<UserPresence[]>("/users/presence");
+  } catch {
+    return [];
+  }
+}
+
+export async function sendHeartbeat(): Promise<void> {
+  try {
+    await request("/users/heartbeat", { method: "POST" });
+  } catch {
+    // ignore
+  }
 }
