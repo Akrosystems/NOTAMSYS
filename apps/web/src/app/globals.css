@@ -2293,6 +2293,7 @@ td small {
   width: 100%;
   border-collapse: collapse;
   font-size: 11.5px;
+  table-layout: fixed;
 }
 .review-table th,
 .review-table td {
@@ -2300,22 +2301,30 @@ td small {
   text-align: left;
   border-bottom: 1px solid var(--line);
   vertical-align: top;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: normal;
 }
 .review-table th {
-  width: 32%;
+  width: 28%;
   color: var(--muted);
   font-weight: 600;
   font-size: 10.5px;
   text-transform: uppercase;
   background: rgba(0, 0, 0, 0.01);
+  letter-spacing: 0.03em;
 }
 .review-table td {
   color: var(--ink);
   font-weight: 500;
+  line-height: 1.45;
 }
 .review-table td.mono {
   font-family: var(--font-mono, monospace);
   font-weight: 600;
+}
+.review-table td.preserve-wrap {
+  white-space: pre-wrap;
 }
 .review-table tr:last-child th,
 .review-table tr:last-child td {

@@ -557,9 +557,9 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
                       B) {request.start_at ? formatUtcDateTime(request.start_at) : "—"}<br/>
                       C) {request.end_permanent ? "PERM" : request.end_at ? `${formatUtcDateTime(request.end_at)} ${request.end_estimated ? "(EST)" : "(Confirmed)"}` : "—"}
                     </td></tr>
-                    {request.periods_of_activity ? <tr><th>Schedule (D)</th><td>{request.periods_of_activity}</td></tr> : null}
-                    <tr><th>Text (Item E)</th><td>{request.raw_text}</td></tr>
-                    <tr><th>Limits (F/G)</th><td>
+                    {request.periods_of_activity ? <tr><th>Schedule (D)</th><td className="preserve-wrap mono">{request.periods_of_activity}</td></tr> : null}
+                    <tr><th>Text (Item E)</th><td className="preserve-wrap">{request.raw_text}</td></tr>
+                    <tr><th>Limits (F/G)</th><td className="mono">
                       Lower: {request.lower_limit_sfc ? "SFC" : request.lower_limit_value || "000"}<br/>
                       Upper: {request.upper_limit_unl ? "UNL" : request.upper_limit_value || "999"}
                     </td></tr>
@@ -584,8 +584,8 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
                       B) {lastDraft.item_b ? formatUtcDateTime(lastDraft.item_b) : "—"}<br/>
                       C) {lastDraft.item_c ? `${formatUtcDateTime(lastDraft.item_c)} ${lastDraft.item_c_qualifier || ""}` : (lastDraft.item_c_qualifier || "PERM")}
                     </td></tr>
-                    {lastDraft.item_d ? <tr><th>Schedule (D)</th><td>{lastDraft.item_d}</td></tr> : null}
-                    <tr><th>Text (Item E)</th><td>{lastDraft.item_e}</td></tr>
+                    {lastDraft.item_d ? <tr><th>Schedule (D)</th><td className="preserve-wrap mono">{lastDraft.item_d}</td></tr> : null}
+                    <tr><th>Text (Item E)</th><td className="preserve-wrap">{lastDraft.item_e}</td></tr>
                     <tr><th>Limits (F/G)</th><td className="mono">
                       Lower: {lastDraft.lower_limit || "000"} · Upper: {lastDraft.upper_limit || "999"}<br/>
                       Coords/Radius: {lastDraft.coordinates_radius}
