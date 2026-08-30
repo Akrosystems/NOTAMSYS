@@ -1540,14 +1540,16 @@ async def get_users_presence(session: Session, _: CurrentUser) -> list[dict[str,
             select(User).where(User.is_active.is_(True)).order_by(User.full_name.asc())
         )
     ).all()
-    # Use naive UTC (strip tzinfo) — SQLite stores without tzinfo; mixing aware/naive raises TypeError.
-    now = datetime.now(UTC).replace(tzinfo=None)
+    now = datetime.now(UTC)
     results: list[dict[str, object]] = []
     for u in users:
         is_online = False
         status_label = "Offline"
         if u.last_seen_at:
-            diff_secs = (now - u.last_seen_at).total_seconds()
+            last_seen = u.last_seen_at
+            if last_seen.tzinfo is None:
+                last_seen = last_seen.replace(tzinfo=UTC)
+            diff_secs = (now - last_seen).total_seconds()
             if diff_secs <= 300:  # within 5 minutes
                 is_online = True
                 status_label = "Online"
@@ -1572,7 +1574,7 @@ async def get_users_presence(session: Session, _: CurrentUser) -> list[dict[str,
 @router.post("/users/heartbeat", tags=["users"])
 async def user_heartbeat(session: Session, user: CurrentUser) -> dict[str, str]:
     """Heartbeat signal to keep user online status fresh."""
-    user.last_seen_at = datetime.now(UTC).replace(tzinfo=None)
+    user.last_seen_at = datetime.now(UTC)
     await session.commit()
     return {"status": "ok"}
 

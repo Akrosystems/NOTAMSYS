@@ -34,11 +34,13 @@ async def get_current_user(
         )
 
     # Throttled update of last_seen_at (at most once every 30 seconds per session).
-    # Store as naive UTC (strip tzinfo) because SQLite doesn't preserve timezone info;
-    # comparing an aware datetime against a naive one raises TypeError.
-    now_naive = datetime.now(UTC).replace(tzinfo=None)
-    if user.last_seen_at is None or (now_naive - user.last_seen_at).total_seconds() > 30:
-        user.last_seen_at = now_naive
+    # Normalizes timezone across PostgreSQL (aware) and SQLite (naive) safely.
+    now = datetime.now(UTC)
+    last_seen = user.last_seen_at
+    if last_seen is not None and last_seen.tzinfo is None:
+        last_seen = last_seen.replace(tzinfo=UTC)
+    if last_seen is None or (now - last_seen).total_seconds() > 30:
+        user.last_seen_at = now
         await session.commit()
 
     return user
