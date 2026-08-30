@@ -2239,6 +2239,104 @@ td small {
   background: #fbe9e7;
   color: var(--red);
 }
+.review-comparison-container {
+  margin: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.review-comparison-header {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.review-comparison-header h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--navy);
+}
+.review-comparison-header p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.review-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.review-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.review-panel-title {
+  padding: 10px 14px;
+  background: var(--soft);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--navy);
+}
+.review-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+.review-table th,
+.review-table td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+.review-table th {
+  width: 32%;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  background: rgba(0, 0, 0, 0.01);
+}
+.review-table td {
+  color: var(--ink);
+  font-weight: 500;
+}
+.review-table td.mono {
+  font-family: var(--font-mono, monospace);
+  font-weight: 600;
+}
+.review-table tr:last-child th,
+.review-table tr:last-child td {
+  border-bottom: none;
+}
+.review-inline-actions {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.review-inline-actions textarea {
+  width: 100%;
+  min-height: 60px;
+  font-size: 12px;
+}
+
 .empty-state {
   padding: 22px;
   text-align: center;

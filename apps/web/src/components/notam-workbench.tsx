@@ -441,7 +441,35 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
         <button className="button primary" onClick={doApprove} disabled={busy}><CheckCheck/>Approve</button>
       </div>
     </div> : null}
-    <div className="workbench-columns"><aside className="source-pane"><div className="pane-title"><div><h2>Source request</h2><p>Original evidence · read only</p></div><FileText/></div><div className="source-document"><div className="document-letterhead"><span>GCAA</span><strong>NOTAM REQUEST FORM</strong><small>GCAA-AIS-NTM-FR01 · Revision 1</small></div><dl><div><dt>Location</dt><dd>{request.location_indicator} / ACCRA FIR</dd></div><div><dt>Request</dt><dd>{request.requested_series?`Series ${request.requested_series}`:"NEW"}</dd></div><div className="wide"><dt>Full text</dt><dd>{request.raw_text}</dd></div><div><dt>Originator</dt><dd>{request.originator_name}</dd></div><div><dt>Reference</dt><dd>{request.originator_reference}</dd></div></dl></div>
+    <div className="workbench-columns"><aside className="source-pane"><div className="pane-title"><div><h2>Source request</h2><p>Original evidence · read only</p></div><FileText/></div>
+      <div className="source-document">
+        <div className="document-letterhead"><span>GCAA</span><strong>NOTAM REQUEST FORM</strong><small>GCAA-AIS-NTM-FR01 · Revision 1</small></div>
+        <dl>
+          <div><dt>Location</dt><dd>{request.location_indicator} ({request.location_type || "AD"})</dd></div>
+          <div><dt>Request Type</dt><dd>{request.requested_kind || "NOTAMN"}{request.requested_series ? ` · Series ${request.requested_series}` : ""}{request.referenced_notam_number ? ` (Ref: ${request.referenced_notam_number})` : ""}</dd></div>
+          <div><dt>Start UTC (Item B)</dt><dd>{request.start_at ? formatUtcDateTime(request.start_at) : "—"}</dd></div>
+          <div><dt>End UTC (Item C)</dt><dd>{request.end_permanent ? "PERM (Permanent)" : request.end_at ? `${formatUtcDateTime(request.end_at)} ${request.end_estimated ? "(EST)" : "(Confirmed)"}` : "—"}</dd></div>
+          {request.periods_of_activity ? <div className="wide"><dt>Periods of Activity (Item D)</dt><dd>{request.periods_of_activity}</dd></div> : null}
+          <div className="wide"><dt>Full text (Item E)</dt><dd>{request.raw_text}</dd></div>
+          {(request.lower_limit_value || request.lower_limit_sfc || request.upper_limit_value || request.upper_limit_unl) ? (
+            <div className="wide">
+              <dt>Limits (Item F/G)</dt>
+              <dd>
+                Lower: {request.lower_limit_sfc ? "SFC" : request.lower_limit_value ? `${request.lower_limit_value} ${request.lower_limit_type || ""}` : "000"} · 
+                Upper: {request.upper_limit_unl ? "UNL" : request.upper_limit_value ? `${request.upper_limit_value} ${request.upper_limit_type || ""}` : "999"}
+              </dd>
+            </div>
+          ) : null}
+          <div><dt>Originator</dt><dd>{request.originator_name}{request.originator_organisation ? ` (${request.originator_organisation})` : ""}</dd></div>
+          <div><dt>Originator Reference</dt><dd>{request.originator_reference || "—"}</dd></div>
+          {(request.originator_email || request.originator_phone) ? (
+            <div className="wide">
+              <dt>Contact</dt>
+              <dd>{[request.originator_email, request.originator_phone].filter(Boolean).join(" · ")}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </div>
       <div className="extraction-result">
         <ScanLine/>
         <div>
@@ -507,7 +535,104 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
             <button type="button" onClick={()=>loadNotam()}><RefreshCw/>Retry</button>
           </> : <p>No NOTAM has been prepared for this request yet.</p>}
         </div> : <>
-          <div className="transmission-preview"><div><strong>Prepared NOTAM</strong><span>ICAO text NOTAM · read only at this stage</span></div><pre>{lastDraft.formatted_message}</pre></div>
+          {/* Side-by-Side Specialist Review & Verification Center */}
+          <div className="review-comparison-container">
+            <div className="review-comparison-header">
+              <div>
+                <h3>Specialist Four-Eyes Verification</h3>
+                <p>Verify that the drafted ICAO NOTAM faithfully represents the originator&apos;s request before approving for publication.</p>
+              </div>
+              <span className={`status-tag status-${request.status}`}>Status: {request.status.toUpperCase()}</span>
+            </div>
+
+            <div className="review-comparison-grid">
+              {/* Left Column: Originator Request */}
+              <div className="review-panel">
+                <div className="review-panel-title"><FileText size={14}/> Originator Request ({request.request_number})</div>
+                <table className="review-table">
+                  <tbody>
+                    <tr><th>Location</th><td><strong>{request.location_indicator}</strong> ({request.location_type || "AD"})</td></tr>
+                    <tr><th>Type / Kind</th><td>{request.requested_kind || "NOTAMN"}{request.referenced_notam_number ? ` (Ref: ${request.referenced_notam_number})` : ""}</td></tr>
+                    <tr><th>Validity</th><td>
+                      B) {request.start_at ? formatUtcDateTime(request.start_at) : "—"}<br/>
+                      C) {request.end_permanent ? "PERM" : request.end_at ? `${formatUtcDateTime(request.end_at)} ${request.end_estimated ? "(EST)" : "(Confirmed)"}` : "—"}
+                    </td></tr>
+                    {request.periods_of_activity ? <tr><th>Schedule (D)</th><td>{request.periods_of_activity}</td></tr> : null}
+                    <tr><th>Text (Item E)</th><td>{request.raw_text}</td></tr>
+                    <tr><th>Limits (F/G)</th><td>
+                      Lower: {request.lower_limit_sfc ? "SFC" : request.lower_limit_value || "000"}<br/>
+                      Upper: {request.upper_limit_unl ? "UNL" : request.upper_limit_value || "999"}
+                    </td></tr>
+                    <tr><th>Originator</th><td>{request.originator_name} {request.originator_reference ? `(${request.originator_reference})` : ""}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Right Column: Prepared NOTAM Draft */}
+              <div className="review-panel">
+                <div className="review-panel-title"><ShieldCheck size={14}/> Prepared NOTAM ({lastDraft.series}{String(lastDraft.serial_number).padStart(4,"0")}/{String(lastDraft.year%100).padStart(2,"0")} {lastDraft.kind})</div>
+                <table className="review-table">
+                  <tbody>
+                    <tr><th>Location (A)</th><td><strong>{lastDraft.item_a}</strong> (FIR: {lastDraft.fir})</td></tr>
+                    <tr><th>Q-Line</th><td className="mono">
+                      <strong>{lastDraft.q_code}</strong> ({lastDraft.traffic}/{lastDraft.purpose}/{lastDraft.scope})<br/>
+                      <small style={{ color: "var(--navy)", fontWeight: "normal" }}>
+                        {lastDraft.validation_result?.rule ? `${lastDraft.validation_result.rule.subject} · ${lastDraft.validation_result.rule.condition}` : "Doc 8126 Criteria"}
+                      </small>
+                    </td></tr>
+                    <tr><th>Validity</th><td>
+                      B) {lastDraft.item_b ? formatUtcDateTime(lastDraft.item_b) : "—"}<br/>
+                      C) {lastDraft.item_c ? `${formatUtcDateTime(lastDraft.item_c)} ${lastDraft.item_c_qualifier || ""}` : (lastDraft.item_c_qualifier || "PERM")}
+                    </td></tr>
+                    {lastDraft.item_d ? <tr><th>Schedule (D)</th><td>{lastDraft.item_d}</td></tr> : null}
+                    <tr><th>Text (Item E)</th><td>{lastDraft.item_e}</td></tr>
+                    <tr><th>Limits (F/G)</th><td className="mono">
+                      Lower: {lastDraft.lower_limit || "000"} · Upper: {lastDraft.upper_limit || "999"}<br/>
+                      Coords/Radius: {lastDraft.coordinates_radius}
+                    </td></tr>
+                    <tr><th>Validation</th><td>
+                      {lastDraft.validation_result?.valid ? (
+                        <span style={{ color: "var(--green)", fontWeight: "bold" }}>✓ Satisfied (Doc 8126 App G)</span>
+                      ) : (
+                        <span style={{ color: "var(--red)", fontWeight: "bold" }}>⚠ {lastDraft.validation_result?.errors?.length || 0} issues</span>
+                      )}
+                    </td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Inline Review Action Decision Box */}
+            {canReview ? (
+              <div className="review-inline-actions">
+                <div>
+                  <strong>Specialist Approval Decision</strong>
+                  <p style={{ margin: "2px 0 0", fontSize: "11px", color: "var(--muted)" }}>
+                    Add review notes or revision feedback below. Comments are required when requesting changes.
+                  </p>
+                </div>
+                <textarea
+                  placeholder="Review comments (mandatory for Request changes, optional for Approve)..."
+                  value={reviewComment}
+                  onChange={(event) => setReviewComment(event.target.value)}
+                />
+                <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                  <button type="button" className="button secondary" onClick={doRequestChanges} disabled={busy}>
+                    <Undo2 size={14}/> Request changes
+                  </button>
+                  <button type="button" className="button primary" onClick={doApprove} disabled={busy}>
+                    <CheckCheck size={14}/> Approve NOTAM
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="transmission-preview">
+            <div><strong>ICAO Transmission Output</strong><span>AFTN / AMHS format</span></div>
+            <pre>{lastDraft.formatted_message}</pre>
+          </div>
+
           {(request.status==="publishing"||request.status==="published") ? <div className="delivery-table">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
               <h3 style={{ margin: 0 }}>Channel delivery status</h3>
