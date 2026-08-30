@@ -43,6 +43,25 @@ const PUBLIC_API_URL = typeof window === "undefined" ? `${process.env.INTERNAL_A
 // silence. See components/demo-banner.tsx for the on-screen indicator.
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
+function isTokenValid(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const payload = JSON.parse(jsonPayload);
+    if (typeof payload.exp !== "number") return false;
+    return payload.exp * 1000 > Date.now() + 10_000;
+  } catch {
+    return false;
+  }
+}
+
 // Server Components call the backend directly (API_URL = INTERNAL_API_URL),
 // bypassing the /api/backend BFF proxy that client-side fetches go through
 // -- so they need to attach the session's Bearer token themselves, the same
@@ -55,7 +74,7 @@ async function authHeader(): Promise<Record<string, string>> {
   const { cookies } = await import("next/headers");
   const store = await cookies();
   let token = store.get("notamsys_access")?.value;
-  if (!token) {
+  if (!token || !isTokenValid(token)) {
     const refreshToken = store.get("notamsys_refresh")?.value;
     if (refreshToken) {
       const { refreshAccessToken } = await import("@/lib/session-refresh");
@@ -89,12 +108,29 @@ function parseApiError(errorBody: unknown, defaultMsg: string): string {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const auth = await authHeader();
-  const response = await fetch(`${API_URL}${path}`, {
+  let auth = await authHeader();
+  let response = await fetch(`${API_URL}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...auth, ...init?.headers },
     cache: "no-store"
   });
+  if (response.status === 401 && typeof window === "undefined") {
+    const { cookies } = await import("next/headers");
+    const store = await cookies();
+    const refreshToken = store.get("notamsys_refresh")?.value;
+    if (refreshToken) {
+      const { refreshAccessToken } = await import("@/lib/session-refresh");
+      const newToken = await refreshAccessToken(refreshToken);
+      if (newToken) {
+        auth = { Authorization: `Bearer ${newToken}` };
+        response = await fetch(`${API_URL}${path}`, {
+          ...init,
+          headers: { "Content-Type": "application/json", ...auth, ...init?.headers },
+          cache: "no-store"
+        });
+      }
+    }
+  }
   if (!response.ok) {
     if (response.status === 401 && typeof window === "undefined") {
       const { redirect } = await import("next/navigation");
@@ -119,8 +155,19 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function demoFallback<T>(path: string, fallback: T): T {
+function demoFallback<T>(path: string, fallback: T, error?: unknown): T {
+  if (
+    error &&
+    typeof error === "object" &&
+    "digest" in error &&
+    typeof (error as { digest?: unknown }).digest === "string" &&
+    ((error as { digest: string }).digest.startsWith("NEXT_REDIRECT") ||
+      (error as { digest: string }).digest.startsWith("BAILOUT_TO_CLIENT_SIDE_RENDERING"))
+  ) {
+    throw error;
+  }
   if (!DEMO_MODE) {
+    if (error instanceof Error) throw error;
     throw new Error(`NOTAMSYS backend request to ${path} failed and demo mode is not enabled`);
   }
   console.warn(`[NOTAMSYS DEMO MODE] ${path} failed; substituting fixture data. Not real.`);
@@ -129,18 +176,18 @@ function demoFallback<T>(path: string, fallback: T): T {
 
 export async function getDashboard(): Promise<DashboardSummary> {
   try { return await request<DashboardSummary>("/dashboard/summary"); }
-  catch { return demoFallback("/dashboard/summary", dashboardSummary); }
+  catch (error) { return demoFallback("/dashboard/summary", dashboardSummary, error); }
 }
 
 export async function getRequests(status?: WorkflowStatus): Promise<NotamRequest[]> {
   const suffix = status ? `?status=${status}` : "";
   try { return await request<NotamRequest[]>(`/requests${suffix}`); }
-  catch { return demoFallback(`/requests${suffix}`, status ? requests.filter((item) => item.status === status) : requests); }
+  catch (error) { return demoFallback(`/requests${suffix}`, status ? requests.filter((item) => item.status === status) : requests, error); }
 }
 
 export async function getRequest(id: string): Promise<NotamRequest> {
   try { return await request<NotamRequest>(`/requests/${id}`); }
-  catch { return demoFallback(`/requests/${id}`, requests.find((item) => item.id === id) ?? requests[0]); }
+  catch (error) { return demoFallback(`/requests/${id}`, requests.find((item) => item.id === id) ?? requests[0], error); }
 }
 
 export async function saveDraft(id: string, payload: DraftPayload): Promise<NotamDraftResult> {
