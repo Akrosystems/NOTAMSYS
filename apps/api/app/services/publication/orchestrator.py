@@ -18,9 +18,14 @@ async def dispatch_delivery(
     simulated: bool,
 ) -> None:
     adapter = build_adapter(delivery.channel, delivery.destination, simulated=simulated)
-    message = adapter.prepare(notam)
-    delivery.outbound_body = message.body
     delivery.attempted_at = datetime.now(UTC)
+    try:
+        message = adapter.prepare(notam)
+    except ValueError as exc:
+        delivery.status = "failed"
+        delivery.response_payload = {"error": str(exc)}
+        return
+    delivery.outbound_body = message.body
     try:
         receipt = await adapter.send(message)
     except ValueError as exc:

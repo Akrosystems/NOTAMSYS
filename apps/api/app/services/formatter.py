@@ -8,18 +8,32 @@ def dtg(value: datetime) -> str:
     return value.astimezone(UTC).strftime("%y%m%d%H%M")
 
 
-def wrap_notam_text(text: str, width: int = 69) -> str:
+def wrap_notam_text(text: str, prefix: str = "", width: int = 69) -> str:
+    """Wraps text so that the first line (including `prefix`) and all subsequent lines
+    are strictly within `width` characters."""
     words = " ".join(text.upper().split()).split(" ")
     lines: list[str] = []
-    current = ""
+    current = prefix
     for word in words:
-        candidate = f"{current} {word}".strip()
-        if len(candidate) > width and current:
+        candidate = f"{current} {word}".strip() if current else word
+        if len(candidate) > width and current != prefix and current != "":
             lines.append(current)
             current = word
+        elif len(candidate) > width and (current == prefix or current == ""):
+            avail = width - len(current)
+            if avail > 0:
+                lines.append(f"{current}{word[:avail]}")
+                remainder = word[avail:]
+            else:
+                lines.append(current)
+                remainder = word
+            while len(remainder) > width:
+                lines.append(remainder[:width])
+                remainder = remainder[width:]
+            current = remainder
         else:
             current = candidate
-    if current:
+    if current and current != prefix:
         lines.append(current)
     return "\n".join(lines)
 
@@ -53,13 +67,20 @@ def format_notam(
         f"A){draft.item_a} B){dtg(draft.item_b)} C){c_value}",
     ]
     if draft.item_d:
-        sections.append(f"D){wrap_notam_text(draft.item_d)}")
-    sections.append(f"E){wrap_notam_text(draft.item_e)}")
+        sections.append(wrap_notam_text(draft.item_d, prefix="D)"))
+    sections.append(wrap_notam_text(draft.item_e, prefix="E)"))
     if draft.item_f:
-        sections.append(f"F){draft.item_f.upper()}")
+        sections.append(wrap_notam_text(draft.item_f, prefix="F)"))
     if draft.item_g:
-        sections.append(f"G){draft.item_g.upper()}")
-    sections[-1] = f"{sections[-1]})"
+        sections.append(wrap_notam_text(draft.item_g, prefix="G)"))
+    if sections:
+        last_section = sections[-1]
+        lines = last_section.split("\n")
+        if len(lines[-1]) + 1 <= 69:
+            lines[-1] = f"{lines[-1]})"
+        else:
+            lines.append(")")
+        sections[-1] = "\n".join(lines)
     return "\n".join(sections)
 
 

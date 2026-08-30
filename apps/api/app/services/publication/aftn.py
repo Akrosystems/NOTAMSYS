@@ -33,6 +33,32 @@ def validate_ita2(text: str) -> list[str]:
     return errors
 
 
+def wrap_aftn_lines(text: str, width: int = AFTN_LINE_WIDTH) -> str:
+    """Ensures every line in an AFTN message is strictly <= width characters."""
+    result_lines: list[str] = []
+    for line in text.split("\n"):
+        if len(line) <= width:
+            result_lines.append(line)
+        else:
+            words = line.split(" ")
+            current = ""
+            for word in words:
+                candidate = f"{current} {word}".strip() if current else word
+                if len(candidate) > width and current:
+                    result_lines.append(current)
+                    current = word
+                elif len(candidate) > width and not current:
+                    while len(candidate) > width:
+                        result_lines.append(candidate[:width])
+                        candidate = candidate[width:]
+                    current = candidate
+                else:
+                    current = candidate
+            if current:
+                result_lines.append(current)
+    return "\n".join(result_lines)
+
+
 def build_envelope(
     formatted_message: str,
     addressees: tuple[str, ...] = ACCRA_AFTN_ADDRESSEES,
@@ -45,7 +71,8 @@ def build_envelope(
     transmittable -- callers should treat that as a failed delivery, not a
     crash."""
     heading = f"{priority} {' '.join(addressees)}\n{originator}"
-    envelope = f"{heading}\n{formatted_message.upper()}"
+    wrapped_message = wrap_aftn_lines(formatted_message.upper())
+    envelope = f"{heading}\n{wrapped_message}"
     errors = validate_ita2(envelope)
     if errors:
         raise ValueError("; ".join(errors))
