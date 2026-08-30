@@ -31,7 +31,7 @@ OPENAPI_TAGS = [
     {"name": "notams", "description": "Reading and drafting the prepared NOTAM attached to a request."},
     {"name": "workflow", "description": "State-machine transitions: submit, request changes, approve. Four-eyes control is enforced here."},
     {"name": "publication", "description": "Publish, per-channel delivery status, and delivery retry. See /system/status for which channels are live vs. simulated."},
-    {"name": "extraction", "description": "OCR/NLP document extraction runs and field acceptance. Off by default -- see NOTAMSYS_EXTRACTION_ENABLED."},
+    {"name": "extraction", "description": "Option A Hybrid Pipeline: deterministic regex parsers (DTGs, coordinates, limits, ICAO codes), RapidFuzz Levenshtein OCR typo-correction with ICAO Doc 8400/OPADD Ed 4.1 abbreviation normalizer, and local sentence-transformers (all-MiniLM-L6-v2) semantic embeddings against Doc 8126 selection criteria. Runs automatically on attachment upload. Re-run and field acceptance endpoints let officers correct or confirm extracted values. Toggle via NOTAMSYS_EXTRACTION_ENABLED."},
     {"name": "rules", "description": "ICAO Doc 8126 NOTAM Selection Criteria catalog and versioned ruleset activation."},
     {"name": "reference", "description": "AIP-derived reference data: FIRs, aerodromes, active dataset."},
     {"name": "quality", "description": "Append-only audit trail."},
@@ -45,6 +45,10 @@ app = FastAPI(
     summary="Controlled NOTAM origination, assurance, approval and publication",
     description=(
         "Backend for NOTAMSYS, an open-source NOTAM office system built by AkroSystems. "
+        "Extraction uses an Option A Hybrid Pipeline (deterministic regex safety parsers + "
+        "RapidFuzz OCR typo-correction + local sentence-transformers semantic embeddings against "
+        "ICAO Doc 8126 Selection Criteria). AIP reference data is sourced from the Ghana AIP "
+        "7th Edition (2026) and expanded with FIR neighbour data (ASECNA AIM). "
         "See /integrations (frontend) or /system/status (this API) for an honest, "
         "live statement of what's real versus simulated -- nothing here claims more "
         "than it does."

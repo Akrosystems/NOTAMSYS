@@ -1,6 +1,7 @@
 "use client";
 
 import type { LimitType, LocationType, NotamRequestInput, RequestedKind } from "@/lib/types";
+import { UtcDateTimeInput } from "./utc-datetime-input";
 
 // Field-for-field state matching GCAA-AIS-NTM-FR01 (NOTAM Request Form).
 // Shared between the authenticated officer intake (/requests/new) and the
@@ -111,8 +112,12 @@ export function NotamRequestFields({ form, onChange }: { form: NotamRequestFormS
     </fieldset>
 
     <div className="field-grid two">
-      <label>Item B) Start time (UTC)<input required type="datetime-local" value={form.startAt} onChange={(event) => onChange({ startAt: event.target.value })}/></label>
-      {!isCancel ? <label>Item C) End time (UTC) <small>leave blank for PERM</small><input type="datetime-local" disabled={form.endPermanent} value={form.endAt} onChange={(event) => onChange({ endAt: event.target.value })}/></label> : null}
+      <label>Item B) Start time (UTC)
+        <UtcDateTimeInput required value={form.startAt} onChange={(val) => onChange({ startAt: val })}/>
+      </label>
+      {!isCancel ? <label>Item C) End time (UTC) <small>leave blank for PERM</small>
+        <UtcDateTimeInput disabled={form.endPermanent} value={form.endAt} onChange={(val) => onChange({ endAt: val })}/>
+      </label> : null}
     </div>
     {!isCancel ? <div className="nrf-end-qualifiers">
       <label className="nrf-check"><input type="checkbox" checked={form.endConfirmed} onChange={(event) => onChange({ endConfirmed: event.target.checked })}/>Confirmed</label>

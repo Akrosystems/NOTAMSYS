@@ -181,7 +181,28 @@ class QLineInput(BaseModel):
     scope: str = Field(min_length=1, max_length=2)
     lower_limit: str = Field(default="000", pattern=r"^\d{3}$")
     upper_limit: str = Field(default="999", pattern=r"^\d{3}$")
-    coordinates_radius: str = Field(pattern=r"^\d{4}[NS]\d{5}[EW]\d{3}$")
+    coordinates_radius: str = Field(default="0536N00010W025", pattern=r"^\d{4}[NS]\d{5}[EW]\d{3}$")
+
+    @field_validator("lower_limit", mode="before")
+    @classmethod
+    def default_lower(cls, v: Any) -> str:
+        if not v or (isinstance(v, str) and not v.strip()):
+            return "000"
+        return str(v).strip()
+
+    @field_validator("upper_limit", mode="before")
+    @classmethod
+    def default_upper(cls, v: Any) -> str:
+        if not v or (isinstance(v, str) and not v.strip()):
+            return "999"
+        return str(v).strip()
+
+    @field_validator("coordinates_radius", mode="before")
+    @classmethod
+    def default_coords(cls, v: Any) -> str:
+        if not v or (isinstance(v, str) and not v.strip()):
+            return "0536N00010W025"
+        return str(v).strip().upper()
 
 
 class NotamDraftCreate(QLineInput):
@@ -198,14 +219,46 @@ class NotamDraftCreate(QLineInput):
     item_g: str | None = Field(default=None, max_length=40)
     aip_supplement_reference: str | None = Field(default=None, max_length=80)
 
+    @field_validator(
+        "item_c_qualifier",
+        "item_f",
+        "item_g",
+        "item_d",
+        "aip_supplement_reference",
+        mode="before",
+    )
+    @classmethod
+    def empty_str_to_none(cls, v: Any) -> Any:
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
+
+
+class PublicationDeliveryRead(ORMModel):
+    id: uuid.UUID
+    notam_id: uuid.UUID
+    channel: str
+    destination: str
+    status: str
+    external_reference: str | None = None
+    attempted_at: datetime | None = None
+    acknowledged_at: datetime | None = None
+    response_payload: dict[str, Any] = Field(default_factory=dict)
+
 
 class NotamRead(ORMModel):
     id: uuid.UUID
     request_id: uuid.UUID
+    identifier: str = ""
     series: NotamSeries
     kind: NotamKind
     serial_number: int
     year: int
+    replaces_notam_id: uuid.UUID | None = None
+    replaces_identifier: str | None = None
+    replaced_by_identifier: str | None = None
+    lifecycle_status: str = "ACTIVE"
+    is_active: bool = True
     fir: str
     q_code: str
     traffic: str
@@ -216,21 +269,33 @@ class NotamRead(ORMModel):
     coordinates_radius: str
     item_a: str
     item_b: datetime
-    item_c: datetime | None
-    item_c_qualifier: str | None
-    item_d: str | None
+    item_c: datetime | None = None
+    item_c_qualifier: str | None = None
+    item_d: str | None = None
     item_e: str
-    item_f: str | None
-    item_g: str | None
-    aip_supplement_reference: str | None
+    item_f: str | None = None
+    item_g: str | None = None
+    aip_supplement_reference: str | None = None
     formatted_message: str
-    aixm_payload: dict[str, Any] | None
-    aixm_xml: str | None
-    validation_result: dict[str, Any]
-    ruleset_version: str
-    approved_by_id: uuid.UUID | None
-    approved_at: datetime | None
-    published_at: datetime | None
+    aixm_payload: dict[str, Any] | None = None
+    aixm_xml: str | None = None
+    validation_result: dict[str, Any] = Field(default_factory=dict)
+    ruleset_version: str = "8126-2022.2"
+    prepared_by_id: uuid.UUID | None = None
+    prepared_by_name: str | None = None
+    prepared_by_role: str | None = None
+    approved_by_id: uuid.UUID | None = None
+    approved_by_name: str | None = None
+    approved_by_role: str | None = None
+    approved_at: datetime | None = None
+    published_at: datetime | None = None
+    request_number: str | None = None
+    request_source: str | None = None
+    received_at: datetime | None = None
+    originator_name: str | None = None
+    originator_email: str | None = None
+    originator_reference: str | None = None
+    deliveries: list[PublicationDeliveryRead] = Field(default_factory=list)
 
 
 class AttachmentRead(ORMModel):
@@ -283,6 +348,30 @@ class ExtractionPreviewField(BaseModel):
 
 class QCodeSuggestionRequest(BaseModel):
     narrative: str = Field(min_length=1, max_length=5000)
+    location_indicator: str | None = Field(default=None, max_length=4)
+
+
+class QCodeCorrectionCreate(BaseModel):
+    request_id: uuid.UUID | None = None
+    location_indicator: str | None = Field(default=None, max_length=8)
+    narrative: str = Field(min_length=1)
+    suggested_q_code: str | None = Field(default=None, max_length=8)
+    suggested_confidence: int | None = None
+    chosen_q_code: str = Field(min_length=4, max_length=8)
+    suggestion_was_in_top5: bool = False
+
+
+class QCodeCorrectionRead(ORMModel):
+    id: uuid.UUID
+    request_id: uuid.UUID | None
+    officer_id: uuid.UUID
+    location_indicator: str | None
+    narrative: str
+    suggested_q_code: str | None
+    suggested_confidence: int | None
+    chosen_q_code: str
+    suggestion_was_in_top5: bool
+    created_at: datetime
 
 
 class ExtractionPreviewResult(BaseModel):

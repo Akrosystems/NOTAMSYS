@@ -1,7 +1,7 @@
 import uuid
 from dataclasses import asdict
 from datetime import UTC, datetime, time
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
@@ -21,9 +21,12 @@ from app.models import (
     ExtractionRun,
     Fir,
     Notam,
+    NotamKind,
     NotamRequest,
+    NotamSeries,
     OrgSettings,
     PublicationDelivery,
+    QCodeCorrection,
     RequestSource,
     Role,
     RuleVersion,
@@ -50,6 +53,8 @@ from app.schemas import (
     NotamRead,
     NotamRequestCreate,
     PublicationDeliveryRead,
+    QCodeCorrectionCreate,
+    QCodeCorrectionRead,
     QCodeSuggestionRequest,
     RefreshRequest,
     RequestRead,
@@ -124,7 +129,7 @@ def _notam_request_fields(payload: NotamRequestCreate) -> dict[str, object]:
     other (or with GCAA-AIS-NTM-FR01, which both replace)."""
     return {
         "originator_name": payload.originator_name,
-        "originator_email": str(payload.originator_email) if payload.originator_email else None,
+        "originator_email": payload.originator_email if payload.originator_email else None,
         "originator_organisation": payload.originator_organisation,
         "originator_phone": payload.originator_phone,
         "originator_reference": payload.originator_reference,
@@ -288,17 +293,146 @@ async def get_request(request_id: uuid.UUID, session: Session, _: CurrentUser) -
     return request
 
 
+async def _build_notam_read(
+    notam: Notam,
+    session: AsyncSession,
+    request: NotamRequest | None = None,
+    replacing_map: dict[uuid.UUID, Notam] | None = None,
+    all_notams_by_id: dict[uuid.UUID, Notam] | None = None,
+    deliveries_by_notam: dict[uuid.UUID, list[PublicationDelivery]] | None = None,
+) -> NotamRead:
+    now = datetime.now(UTC)
+
+    # Check if replaced or cancelled by another published NOTAM
+    replaces_ident = None
+    if notam.replaces_notam_id:
+        if all_notams_by_id and notam.replaces_notam_id in all_notams_by_id:
+            replaces_ident = all_notams_by_id[notam.replaces_notam_id].identifier
+        else:
+            rep_target = await session.get(Notam, notam.replaces_notam_id)
+            if rep_target:
+                replaces_ident = rep_target.identifier
+
+    replaced_by_ident = None
+    superseding_notam = None
+    if replacing_map and notam.id in replacing_map:
+        superseding_notam = replacing_map[notam.id]
+        replaced_by_ident = superseding_notam.identifier
+
+    # Determine lifecycle status
+    is_active = True
+    if superseding_notam:
+        is_active = False
+        if superseding_notam.kind == NotamKind.CANCEL:
+            lifecycle_status = "CANCELLED"
+        else:
+            lifecycle_status = "REPLACED"
+    elif notam.kind == NotamKind.CANCEL:
+        is_active = False
+        lifecycle_status = "CANCELLATION_NOTICE"
+    elif not notam.published_at:
+        lifecycle_status = "PUBLISHING"
+    elif notam.item_c_qualifier == "PERM":
+        lifecycle_status = "PERM"
+    elif notam.item_c_qualifier == "EST":
+        if notam.item_c and notam.item_c < now:
+            is_active = False
+            lifecycle_status = "EST_EXPIRED"
+        elif notam.item_c and (notam.item_c - now).total_seconds() < 48 * 3600:
+            lifecycle_status = "EST_EXPIRING_SOON"
+        else:
+            lifecycle_status = "EST_ACTIVE"
+    elif notam.item_c and notam.item_c < now:
+        is_active = False
+        lifecycle_status = "EXPIRED"
+    elif notam.item_c and (notam.item_c - now).total_seconds() < 48 * 3600:
+        lifecycle_status = "EXPIRING_SOON"
+    else:
+        lifecycle_status = "ACTIVE"
+
+    # Deliveries
+    if deliveries_by_notam is not None:
+        raw_delivs = deliveries_by_notam.get(notam.id, [])
+    else:
+        raw_delivs = list(
+            await session.scalars(
+                select(PublicationDelivery).where(PublicationDelivery.notam_id == notam.id)
+            )
+        )
+    deliv_reads = [PublicationDeliveryRead.model_validate(d) for d in raw_delivs]
+
+    req = request
+    if req is None and notam.request_id:
+        req = await session.get(NotamRequest, notam.request_id)
+
+    prep = None
+    if notam.prepared_by_id:
+        prep = await session.get(User, notam.prepared_by_id)
+
+    appr = None
+    if notam.approved_by_id:
+        appr = await session.get(User, notam.approved_by_id)
+
+    return NotamRead(
+        id=notam.id,
+        request_id=notam.request_id,
+        identifier=notam.identifier,
+        series=notam.series,
+        kind=notam.kind,
+        serial_number=notam.serial_number,
+        year=notam.year,
+        replaces_notam_id=notam.replaces_notam_id,
+        replaces_identifier=replaces_ident,
+        replaced_by_identifier=replaced_by_ident,
+        lifecycle_status=lifecycle_status,
+        is_active=is_active,
+        fir=notam.fir,
+        q_code=notam.q_code,
+        traffic=notam.traffic,
+        purpose=notam.purpose,
+        scope=notam.scope,
+        lower_limit=notam.lower_limit,
+        upper_limit=notam.upper_limit,
+        coordinates_radius=notam.coordinates_radius,
+        item_a=notam.item_a,
+        item_b=notam.item_b,
+        item_c=notam.item_c,
+        item_c_qualifier=notam.item_c_qualifier,
+        item_d=notam.item_d,
+        item_e=notam.item_e,
+        item_f=notam.item_f,
+        item_g=notam.item_g,
+        aip_supplement_reference=notam.aip_supplement_reference,
+        formatted_message=notam.formatted_message,
+        aixm_payload=notam.aixm_payload,
+        aixm_xml=notam.aixm_xml,
+        validation_result=notam.validation_result,
+        ruleset_version=notam.ruleset_version,
+        prepared_by_id=notam.prepared_by_id,
+        prepared_by_name=prep.full_name if prep else None,
+        prepared_by_role=prep.role.value if prep else None,
+        approved_by_id=notam.approved_by_id,
+        approved_by_name=appr.full_name if appr else None,
+        approved_by_role=appr.role.value if appr else None,
+        approved_at=notam.approved_at,
+        published_at=notam.published_at,
+        request_number=req.request_number if req else None,
+        request_source=req.source.value if req and req.source else None,
+        received_at=req.received_at if req else None,
+        originator_name=req.originator_name if req else None,
+        originator_email=req.originator_email if req else None,
+        originator_reference=req.originator_reference if req else None,
+        deliveries=deliv_reads,
+    )
+
+
 @router.get(
     "/requests/{request_id}/notam", response_model=NotamRead | None, tags=["notams"]
 )
 async def get_request_notam(
     request_id: uuid.UUID, session: Session, _: CurrentUser
-) -> Notam | None:
-    """The prepared NOTAM for a request, once one exists. saveDraft (POST
-    .../draft) both creates and updates the draft but only works while the
-    request is in DRAFT/CHANGES_REQUESTED -- this is the read path for every
-    later stage (review, approved, publishing, published) where the UI needs
-    to show what was prepared without being able to re-trigger drafting."""
+) -> NotamRead | None:
+    """The prepared NOTAM for a request, once one exists."""
     request = await session.scalar(
         select(NotamRequest)
         .options(selectinload(NotamRequest.notam))
@@ -306,7 +440,92 @@ async def get_request_notam(
     )
     if request is None:
         raise HTTPException(status_code=404, detail="Request not found")
-    return request.notam
+    if request.notam is None:
+        return None
+    return await _build_notam_read(request.notam, session, request=request)
+
+
+
+@router.get("/notams", response_model=list[NotamRead], tags=["notams"])
+async def list_notams(
+    session: Session,
+    _: CurrentUser,
+    series: NotamSeries | None = None,
+    location: str | None = None,
+    status: str | None = None,
+    search: str | None = None,
+) -> list[NotamRead]:
+    """Lists published NOTAMs with full operational, audit, and lifecycle tracking."""
+    statement = (
+        select(Notam)
+        .options(
+            selectinload(Notam.request),
+            selectinload(Notam.prepared_by),
+            selectinload(Notam.approved_by),
+        )
+        .where(Notam.published_at.is_not(None))
+        .order_by(Notam.published_at.desc())
+    )
+    if series is not None:
+        statement = statement.where(Notam.series == series)
+    if location:
+        statement = statement.where(Notam.item_a == location.upper().strip())
+
+    notams = list(await session.scalars(statement))
+    if not notams:
+        return []
+
+    # Pre-fetch all deliveries
+    notam_ids = [n.id for n in notams]
+    deliveries = list(
+        await session.scalars(
+            select(PublicationDelivery).where(PublicationDelivery.notam_id.in_(notam_ids))
+        )
+    )
+    deliveries_by_notam: dict[uuid.UUID, list[PublicationDelivery]] = {}
+    for d in deliveries:
+        deliveries_by_notam.setdefault(d.notam_id, []).append(d)
+
+    # Build maps for replacements
+    all_notams_by_id = {n.id: n for n in notams}
+    replacing_map: dict[uuid.UUID, Notam] = {}
+    for n in notams:
+        if n.replaces_notam_id and n.kind in {NotamKind.REPLACE, NotamKind.CANCEL}:
+            replacing_map[n.replaces_notam_id] = n
+
+    results: list[NotamRead] = []
+    for n in notams:
+        item = await _build_notam_read(
+            n,
+            session,
+            replacing_map=replacing_map,
+            all_notams_by_id=all_notams_by_id,
+            deliveries_by_notam=deliveries_by_notam,
+        )
+        # Optional filter by lifecycle status
+        if status:
+            st = status.upper().strip()
+            if st == "ACTIVE" and not item.is_active:
+                continue
+            if st == "EXPIRING" and item.lifecycle_status not in {"EXPIRING_SOON", "EST_EXPIRING_SOON"}:
+                continue
+            if st == "EST" and "EST" not in item.lifecycle_status:
+                continue
+            if st == "PERM" and item.lifecycle_status != "PERM":
+                continue
+            if st == "REPLACED_CANCELLED" and item.lifecycle_status not in {"REPLACED", "CANCELLED", "CANCELLATION_NOTICE"}:
+                continue
+        # Optional search filter
+        if search:
+            q = search.casefold().strip()
+            searchable = f"{item.identifier} {item.q_code} {item.item_a} {item.item_e} {item.originator_name or ''} {item.originator_reference or ''}".casefold()
+            if q not in searchable:
+                continue
+        results.append(item)
+
+    return results
+
+
 
 
 @router.post("/requests/{request_id}/acknowledge", response_model=RequestRead, tags=["requests"])
@@ -498,7 +717,13 @@ async def preview_extraction(
         result = run_pipeline(content, media_type, engine)
     except ValueError as exc:
         raise HTTPException(status_code=415, detail=str(exc)) from exc
-    return ExtractionPreviewResult(**result.as_dict())
+    d = result.as_dict()
+    return ExtractionPreviewResult(
+        fields=d["fields"],  # type: ignore[arg-type]
+        page_count=d["page_count"],  # type: ignore[arg-type]
+        q_code_suggestions=d["q_code_suggestions"],  # type: ignore[arg-type]
+        raw_text=d["raw_text"],  # type: ignore[arg-type]
+    )
 
 
 @router.post(
@@ -709,7 +934,9 @@ async def list_deliveries(notam_id: uuid.UUID, session: Session, _: CurrentUser)
 async def retry_delivery(
     delivery_id: uuid.UUID,
     session: Session,
-    user: Annotated[User, Depends(require_roles(Role.NOF_MANAGER))],
+    user: Annotated[
+        User, Depends(require_roles(Role.AIS_OFFICER, Role.AIS_SPECIALIST, Role.NOF_MANAGER))
+    ],
 ) -> PublicationDelivery:
     delivery = await session.get(PublicationDelivery, delivery_id)
     if delivery is None:
@@ -732,6 +959,116 @@ async def retry_delivery(
     await session.commit()
     await session.refresh(delivery)
     return delivery
+
+
+@router.post(
+    "/deliveries/{delivery_id}/acknowledge",
+    response_model=PublicationDeliveryRead,
+    tags=["publication"],
+)
+async def acknowledge_delivery(
+    delivery_id: uuid.UUID,
+    session: Session,
+    user: Annotated[
+        User, Depends(require_roles(Role.AIS_OFFICER, Role.AIS_SPECIALIST, Role.NOF_MANAGER))
+    ],
+) -> PublicationDelivery:
+    """Manually marks a specific channel delivery as acknowledged after manual transmission."""
+    delivery = await session.get(PublicationDelivery, delivery_id)
+    if delivery is None:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    notam = await session.get(Notam, delivery.notam_id)
+    if notam is None:
+        raise HTTPException(status_code=404, detail="NOTAM not found")
+
+    now = datetime.now(UTC)
+    delivery.status = "acknowledged"
+    delivery.acknowledged_at = now
+    delivery.response_payload = {
+        **delivery.response_payload,
+        "manual_acknowledgement": True,
+        "acknowledged_by": user.full_name,
+    }
+    await audit(
+        session,
+        "publication_delivery",
+        delivery.id,
+        "delivery_manually_acknowledged",
+        user.id,
+        payload={"channel": delivery.channel, "status": "acknowledged"},
+    )
+    await _reconcile_publishing_status(session, notam, user)
+    await session.commit()
+    await session.refresh(delivery)
+    return delivery
+
+
+@router.post(
+    "/requests/{request_id}/mark-published",
+    response_model=RequestRead,
+    tags=["publication"],
+)
+async def mark_request_published(
+    request_id: uuid.UUID,
+    session: Session,
+    user: Annotated[
+        User, Depends(require_roles(Role.AIS_OFFICER, Role.AIS_SPECIALIST, Role.NOF_MANAGER))
+    ],
+) -> NotamRequest:
+    """Allows an AIS Officer, Specialist, or Manager to mark a NOTAM as Published
+    when it was manually transmitted (e.g. entered directly into AFTN terminal
+    or web portal after automatic delivery failure)."""
+    request = await session.scalar(
+        select(NotamRequest)
+        .options(selectinload(NotamRequest.notam))
+        .where(NotamRequest.id == request_id)
+    )
+    if request is None or request.notam is None:
+        raise HTTPException(status_code=404, detail="Prepared NOTAM not found")
+    if request.status not in {
+        WorkflowStatus.PUBLISHING,
+        WorkflowStatus.APPROVED,
+        WorkflowStatus.PUBLISHED,
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail="Only approved or publishing NOTAMs can be marked as published",
+        )
+
+    now = datetime.now(UTC)
+    request.notam.published_at = now
+    deliveries = list(
+        await session.scalars(
+            select(PublicationDelivery).where(PublicationDelivery.notam_id == request.notam.id)
+        )
+    )
+    for delivery in deliveries:
+        if delivery.status != "acknowledged":
+            delivery.status = "acknowledged"
+            delivery.acknowledged_at = now
+            delivery.response_payload = {
+                **delivery.response_payload,
+                "manual_acknowledgement": True,
+                "acknowledged_by": user.full_name,
+            }
+
+    if request.status == WorkflowStatus.APPROVED:
+        await transition_request(
+            session, request, WorkflowStatus.PUBLISHING, user, "publication_started"
+        )
+    if request.status == WorkflowStatus.PUBLISHING:
+        await transition_request(
+            session,
+            request,
+            WorkflowStatus.PUBLISHED,
+            user,
+            "publication_manual_completed",
+            payload={"manual_override": True, "actor": user.email},
+        )
+
+    await session.commit()
+    await session.refresh(request)
+    return request
 
 
 async def _reconcile_publishing_status(
@@ -940,7 +1277,7 @@ async def rules_catalog(
     _: CurrentUser,
     search: str | None = None,
     status_filter: str | None = Query(default=None, alias="status"),
-) -> list[dict[str, object]]:
+) -> list[dict[str, Any]]:
     rows = [{**asdict(rule), "q_code": rule.q_code} for rule in get_catalog().rules]
     if search:
         term = search.casefold()
@@ -967,12 +1304,47 @@ async def rule_by_qcode(q_code: str, _: CurrentUser) -> dict[str, object]:
 @router.post("/rules/qcode-suggestions", tags=["rules"])
 async def qcode_suggestions(payload: QCodeSuggestionRequest, _: CurrentUser) -> list[dict[str, object]]:
     """Ranked Q-code candidates for whatever narrative text is currently in
-    Item E -- covers both intake paths (typed by hand or seeded from a
-    photographed form's OCR text) uniformly, since it works off the live
-    form content rather than only the original upload. Never a single
-    silent answer: the officer picks one or ignores all of them, same
-    contract as suggest_q_codes() itself."""
-    return suggest_q_codes(payload.narrative)
+    Item E, using the Option A three-tier hybrid pipeline:
+
+    1. Deterministic two-sided keyword scoring against all 1,250 Doc 8126
+       selection criteria rules (subject keywords + condition keywords).
+    2. RapidFuzz Levenshtein OCR typo-correction with ICAO Doc 8400 /
+       EUROCONTROL OPADD Ed 4.1 abbreviation normalizer applied to the
+       input before scoring, recovering OCR errors (0→O, 1→I/L, 5→S, 8→B)
+       and expanding standard aviation abbreviations.
+    3. Local sentence-transformers cosine similarity (all-MiniLM-L6-v2)
+       used to re-rank the top candidates by semantic meaning against the
+       canonical Doc 8126 rule descriptions -- no GPU, no external API.
+
+    Confidence is always capped at 90% to prevent false certainty.
+    Never returns a single silent answer: the officer picks one or
+    ignores all -- same contract as suggest_q_codes() itself."""
+    return suggest_q_codes(payload.narrative, location_indicator=payload.location_indicator)
+
+
+@router.post("/rules/qcode-corrections", response_model=QCodeCorrectionRead, tags=["rules"])
+async def record_qcode_correction(
+    payload: QCodeCorrectionCreate,
+    session: Session,
+    user: CurrentUser,
+) -> QCodeCorrection:
+    """Records an officer's correction/selection feedback when choosing a Q-code.
+    Used for continuous improvement of keyword and semantic matching models.
+    """
+    correction = QCodeCorrection(
+        request_id=payload.request_id,
+        officer_id=user.id,
+        location_indicator=payload.location_indicator,
+        narrative=payload.narrative,
+        suggested_q_code=payload.suggested_q_code,
+        suggested_confidence=payload.suggested_confidence,
+        chosen_q_code=payload.chosen_q_code.upper(),
+        suggestion_was_in_top5=payload.suggestion_was_in_top5,
+    )
+    session.add(correction)
+    await session.commit()
+    await session.refresh(correction)
+    return correction
 
 
 @router.get("/rules/versions", response_model=list[RuleVersionRead], tags=["rules"])
@@ -1019,6 +1391,8 @@ async def system_status(_: CurrentUser) -> dict[str, object]:
     so the UI can state honestly what's live vs. simulated/stubbed instead
     of hardcoding claims like "HEALTHY" that nothing actually checks. See
     docs/ARCHITECTURE.md's operational boundary."""
+    from app.services.extraction.semantic import get_semantic_matcher
+
     return {
         "environment": settings.environment,
         "ocr_engine": settings.ocr_engine,
@@ -1032,7 +1406,9 @@ async def system_status(_: CurrentUser) -> dict[str, object]:
         "aip_provider": settings.aip_provider,
         "storage_backend": settings.storage_backend,
         "public_intake_enabled": settings.public_intake_enabled,
+        "semantic_model_status": get_semantic_matcher().model_status,
     }
+
 
 
 @router.get("/dashboard/summary", response_model=DashboardSummary, tags=["dashboard"])
@@ -1082,10 +1458,10 @@ async def dashboard_summary(session: Session, _: CurrentUser) -> DashboardSummar
         revised_count = len(set(revised_ids))
         first_pass_quality = round(100 * (len(decided_ids) - revised_count) / len(decided_ids), 1)
     return DashboardSummary(
-        requests_in_queue=int(queue or 0),
-        awaiting_specialist=int(review or 0),
-        published_today=int(published or 0),
-        estimated_due=int(estimated_due or 0),
+        requests_in_queue=queue or 0,
+        awaiting_specialist=review or 0,
+        published_today=published or 0,
+        estimated_due=estimated_due or 0,
         first_pass_quality=first_pass_quality,
     )
 

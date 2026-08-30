@@ -474,3 +474,38 @@ class AirspaceRef(Base):
     kind: Mapped[str] = mapped_column(String(40))  # e.g. "CTR", "TMA", "FIR"
     fir_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("firs.id"))
     provenance: Mapped[str] = mapped_column(String(200))
+
+
+class QCodeCorrection(Base):
+    """Officer Q-code correction feedback log.
+
+    Records every case where an officer picks a Q-code that differs from the
+    system's top-ranked suggestion.  Used as a training signal to improve the
+    keyword_rules engine and to build a GCAA-specific override table that
+    surfaces local patterns (e.g. how DGLE narratives are typically coded).
+
+    Never used to override the officer's choice -- it is purely a learning
+    signal and an audit record.
+    """
+
+    __tablename__ = "qcode_corrections"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    request_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("notam_requests.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    officer_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    location_indicator: Mapped[str | None] = mapped_column(String(8))
+    # The narrative text that was used to generate suggestions
+    narrative: Mapped[str] = mapped_column(Text)
+    # Top suggestion the system produced (the one the officer overrode)
+    suggested_q_code: Mapped[str | None] = mapped_column(String(8))
+    suggested_confidence: Mapped[int | None] = mapped_column()
+    # What the officer actually chose
+    chosen_q_code: Mapped[str] = mapped_column(String(8), index=True)
+    # For analysis: was the suggestion completely wrong or just lower-ranked?
+    suggestion_was_in_top5: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.now(UTC))
+

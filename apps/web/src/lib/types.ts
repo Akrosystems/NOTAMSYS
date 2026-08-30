@@ -149,6 +149,9 @@ export interface SystemStatus {
   aip_provider: string;
   storage_backend: string;
   public_intake_enabled: boolean;
+  /** "loading" while all-MiniLM-L6-v2 weights are being fetched/initialized,
+   *  "ready" once done, "unavailable" if sentence-transformers is not installed. */
+  semantic_model_status?: "loading" | "ready" | "unavailable";
 }
 
 export interface NotamRequestInput {
@@ -233,6 +236,10 @@ export interface QCodeSuggestion {
   verification_status: VerificationStatus;
   score: number;
   confidence: number;
+  lower_limit?: string;
+  upper_limit?: string;
+  radius?: string;
+  coordinates_radius?: string;
 }
 
 export interface RuleMatch {
@@ -256,13 +263,91 @@ export interface ValidationResult {
   ruleset_version: string;
 }
 
-export interface NotamDraftResult {
+export type NotamLifecycleStatus =
+  | "ACTIVE"
+  | "EXPIRING_SOON"
+  | "EST_ACTIVE"
+  | "EST_EXPIRING_SOON"
+  | "EST_EXPIRED"
+  | "EXPIRED"
+  | "PERM"
+  | "REPLACED"
+  | "CANCELLED"
+  | "CANCELLATION_NOTICE"
+  | "PUBLISHING";
+
+export interface ActiveNotam {
+  id: string;
+  identifier: string;
+  series: "A" | "B";
+  kind: "NOTAMN" | "NOTAMR" | "NOTAMC";
+  item_a: string;
+  item_e: string;
+  q_code: string;
+  published_at?: string;
+}
+
+export interface PublishedNotam {
   id: string;
   request_id: string;
+  identifier: string;
   series: "A" | "B";
   kind: "NOTAMN" | "NOTAMR" | "NOTAMC";
   serial_number: number;
   year: number;
+  replaces_notam_id?: string | null;
+  replaces_identifier?: string | null;
+  replaced_by_identifier?: string | null;
+  lifecycle_status: NotamLifecycleStatus;
+  is_active: boolean;
+  fir: string;
+  q_code: string;
+  traffic: string;
+  purpose: string;
+  scope: string;
+  lower_limit: string;
+  upper_limit: string;
+  coordinates_radius: string;
+  item_a: string;
+  item_b: string;
+  item_c?: string | null;
+  item_c_qualifier?: "EST" | "PERM" | null;
+  item_d?: string | null;
+  item_e: string;
+  item_f?: string | null;
+  item_g?: string | null;
+  aip_supplement_reference?: string | null;
+  formatted_message: string;
+  aixm_payload?: Record<string, unknown> | null;
+  aixm_xml?: string | null;
+  validation_result: ValidationResult;
+  ruleset_version: string;
+  prepared_by_id?: string | null;
+  prepared_by_name?: string | null;
+  prepared_by_role?: string | null;
+  approved_by_id?: string | null;
+  approved_by_name?: string | null;
+  approved_by_role?: string | null;
+  approved_at?: string | null;
+  published_at?: string | null;
+  request_number?: string | null;
+  request_source?: string | null;
+  received_at?: string | null;
+  originator_name?: string | null;
+  originator_email?: string | null;
+  originator_reference?: string | null;
+  deliveries: PublicationDelivery[];
+}
+
+export interface NotamDraftResult {
+  id: string;
+  request_id: string;
+  identifier?: string;
+  series: "A" | "B";
+  kind: "NOTAMN" | "NOTAMR" | "NOTAMC";
+  serial_number: number;
+  year: number;
+  replaces_notam_id?: string | null;
   fir: string;
   q_code: string;
   traffic: string;
@@ -300,6 +385,7 @@ export interface PublicationDelivery {
 export interface DraftPayload {
   series: "A" | "B";
   kind: "NOTAMN" | "NOTAMR" | "NOTAMC";
+  replaces_notam_id?: string;
   fir: string;
   q_code: string;
   traffic: string;
@@ -310,7 +396,7 @@ export interface DraftPayload {
   coordinates_radius: string;
   item_a: string;
   item_b: string;
-  item_c: string;
+  item_c?: string;
   item_c_qualifier?: "EST" | "PERM";
   item_d?: string;
   item_e: string;
@@ -318,3 +404,4 @@ export interface DraftPayload {
   item_g?: string;
   aip_supplement_reference?: string;
 }
+

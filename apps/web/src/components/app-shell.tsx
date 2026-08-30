@@ -61,6 +61,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }, 60_000);
     return () => window.clearInterval(timer);
   }, []);
+  // Poll system status every 2 s while the semantic model is still loading
+  // weights, stopping as soon as it becomes "ready" or "unavailable".
+  useEffect(() => {
+    if (status?.semantic_model_status !== "loading") return;
+    const timer = window.setInterval(() => {
+      getSystemStatus().then((s) => {
+        setStatus(s);
+        if (s.semantic_model_status !== "loading") window.clearInterval(timer);
+      }).catch(() => {});
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [status?.semantic_model_status]);
   if (path === "/login" || path === "/submit") return <>{children}</>;
   const isActive = (href: string) => href === "/" ? path === "/" : path.startsWith(href);
   return (
@@ -97,7 +109,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div><i className="live-dot"/><strong>{status ? status.environment : "Connecting…"}</strong></div>
           <p>{status ? `Publication: ${status.publication_mode === "simulated_sync" ? "simulated (dev/test)" : "live adapters"}` : "Loading system status…"}</p>
           <small>{status ? `Storage: ${status.storage_backend}` : ""}</small>
+          {status?.semantic_model_status === "loading" ? (
+            <div className="semantic-model-loading">
+              <span className="semantic-loading-spinner" aria-hidden="true" />
+              <small>Loading weights…</small>
+            </div>
+          ) : null}
         </div>
+
         <div className="sidebar-meta"><Database/><span>Ruleset {activeRuleset?.version ?? "—"}</span></div>
         <div className="built-by"><span>Built by</span><strong>AkroSystems</strong></div>
       </aside>

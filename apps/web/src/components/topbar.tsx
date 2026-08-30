@@ -4,6 +4,7 @@ import { Bell, Check, ChevronDown, Clock3, Copy, LogOut, Menu, Moon, Share2, Sun
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { getAuditEvents } from "@/lib/api";
+import { formatUtcDateTime } from "@/lib/time";
 import type { AuditEventEntry } from "@/lib/types";
 import { useCurrentUser } from "./user-context";
 
@@ -107,7 +108,7 @@ function ActivityBell() {
         {events && events.length === 0 ? <p>No recent activity.</p> : null}
         {events?.map((event) => <div className="activity-dropdown-row" key={event.id}>
           <span>{event.action.replace(/_/g, " ")}</span>
-          <small>{event.actor_name} · {new Date(event.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</small>
+          <small>{event.actor_name} · {formatUtcDateTime(event.created_at)}</small>
         </div>)}
       </div> : null}
     </div>

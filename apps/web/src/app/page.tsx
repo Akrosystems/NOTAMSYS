@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MetricCard } from "@/components/metric-card";
 import { QueueTable } from "@/components/queue-table";
 import { getAuditEvents, getCurrentUser, getDashboard, getRequests, getRuleVersions, getSystemStatus } from "@/lib/api";
+import { formatUtcTime } from "@/lib/time";
 
 // Operational data, not marketing content: must be fetched fresh on every
 // request, never baked into the static build. Without this, `next build`
@@ -42,7 +43,7 @@ export default async function DashboardPage() {
       <MetricCard icon={ShieldCheck} value={`${summary.first_pass_quality}%`} label="First-pass quality" detail="No correction cycle needed" tone="purple" />
     </section>
     <section className="dashboard-grid"><QueueTable requests={requests}/><aside className="panel activity-panel"><div className="panel-heading"><div><h2>Recent activity</h2><p>Live audit stream</p></div><Activity/></div><div className="activity-list">
-      {activity.length === 0 ? <p className="empty-state">No audit events recorded yet.</p> : activity.map((event, index) => <div className="activity-row" key={event.id}><span className={`activity-dot tone-${index % 4}`}/><div><strong>{event.action.replace(/_/g, " ")}</strong><small>{event.actor_name} · {new Date(event.created_at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} UTC</small></div></div>)}
+      {activity.length === 0 ? <p className="empty-state">No audit events recorded yet.</p> : activity.map((event, index) => <div className="activity-row" key={event.id}><span className={`activity-dot tone-${index % 4}`}/><div><strong>{event.action.replace(/_/g, " ")}</strong><small>{event.actor_name} · {formatUtcTime(event.created_at)}</small></div></div>)}
     </div><div className="shift-summary"><span><i className="live-dot"/> {status?.environment ?? "—"}</span><strong>Ruleset {activeRuleset?.version ?? "—"} · {status?.publication_mode === "simulated_sync" ? "Simulated publication" : "Live adapters"}</strong></div></aside></section>
   </div>;
 }

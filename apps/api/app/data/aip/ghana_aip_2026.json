@@ -1,0 +1,1168 @@
+{
+  "version": "dgac-fir-2026.2",
+  "source": "Ghana AIP 7th Edition (21 May 2026) + ASECNA eAIP Togo (eff. 06 AUG 2026) + ASECNA eAIP Benin (eff. 09 JUL 2026)",
+  "effective_date": "2026-08-06T00:00:00Z",
+  "notes": "Comprehensive Accra FIR (DGAC) dataset incorporating all three sovereign civil aviation territories: Ghana (GCAA), Togo (ASECNA / ANAC), and Benin (ASECNA / ANAC). Includes General (GEN), En-Route (ENR 1-5), and Aerodrome (AD 1-2) sections.",
+  "general": {
+    "designated_authorities": [
+      {
+        "country": "Ghana",
+        "name": "Ghana Civil Aviation Authority (GCAA)",
+        "address": "Private Mail Bag, Kotoka International Airport, Accra, Ghana",
+        "tel": "+233 (0)302 776171",
+        "email": "info@gcaa.com.gh",
+        "website": "https://www.gcaa.com.gh",
+        "aftn": "DGAAZQZX"
+      },
+      {
+        "country": "Togo",
+        "name": "Société Aéroportuaire de Lomé-Tokoin (SALT) / ANAC Togo",
+        "address": "Aéroport International Gnassingbé Eyadéma, B.P. 10112 - Lomé, Togo",
+        "tel": "+228 22 23 60 60",
+        "email": "salttogo1@gmail.com",
+        "website": "https://aeroportdelome.com",
+        "aftn": "DXXXYKYX"
+      },
+      {
+        "country": "Benin",
+        "name": "Agence Nationale de l Aviation Civile du Bénin (ANAC Benin) / ASECNA",
+        "address": "B.P. 08-0113 Cotonou, Bénin",
+        "tel": "+229 21 30 04 22",
+        "email": "secretariat@anac.bj",
+        "aftn": "DBBBYQYX"
+      },
+      {
+        "country": "Regional ATS Provider",
+        "name": "ASECNA (Agence pour la Sécurité de la Navigation Aérienne en Afrique et à Madagascar)",
+        "address": "32-38, Avenue Jean Jaurès, Dakar, Sénégal",
+        "website": "https://aim.asecna.aero",
+        "coverage": "Air navigation services in Togo & Benin terrestrial airspaces"
+      }
+    ],
+    "international_notam_offices": [
+      {
+        "code": "DGAA",
+        "name": "Accra International NOTAM Office (NOF)",
+        "location": "Kotoka International Airport, Accra, Ghana",
+        "hours": "H24",
+        "aftn": "DGAAYNYX",
+        "email": "aisnotam@caa.com.gh",
+        "provenance": "Ghana AIP GEN 3.1"
+      },
+      {
+        "code": "DXXX",
+        "name": "Lomé International Briefing / NOTAM Office",
+        "location": "Aéroport International Gnassingbé Eyadéma, Lomé, Togo",
+        "hours": "H24",
+        "aftn": "DXXXYNYX",
+        "email": "togorep@asecna.org",
+        "provenance": "ASECNA eAIP AD-2.DXXX"
+      },
+      {
+        "code": "DBBB",
+        "name": "Cotonou International Briefing / NOTAM Office",
+        "location": "Aéroport International Cardinal Bernardin Gantin, Cotonou, Benin",
+        "hours": "H24",
+        "aftn": "DBBBYNYX",
+        "provenance": "ASECNA eAIP AD-2.DBBB"
+      }
+    ],
+    "measuring_system": {
+      "distance": "Nautical Miles (NM) and tenths",
+      "altitude_elevation": "Feet (FT)",
+      "horizontal_speed": "Knots (KT)",
+      "vertical_speed": "Feet per minute (FT/MIN)",
+      "temperature": "Degrees Celsius (°C)",
+      "altimeter_setting": "Hectopascals (hPa)",
+      "geodetic_datum": "WGS-84",
+      "time_system": "Coordinated Universal Time (UTC)"
+    }
+  },
+  "firs": [
+    {
+      "icao_code": "DGAC",
+      "name": "Accra Flight Information Region (FIR)",
+      "countries": [
+        "Ghana",
+        "Togo",
+        "Benin"
+      ],
+      "lateral_limits": "Encompasses the sovereign airspace of Ghana, Togo, and Benin, and the Gulf of Guinea oceanic sector bounded by Dakar (GOOO), Niamey (DRRR), Kano (DNKK), Brazzaville (FCCC), and Luanda (FNAN) FIRs.",
+      "vertical_limits": "SFC to UNL",
+      "airspace_class": "A (above FL245), D (FL145 to FL245), G (below FL145 uncontrolled)",
+      "controlling_units": [
+        {
+          "unit": "Accra Area Control Centre (ACC)",
+          "callsign": "Accra Control",
+          "frequency_mhz": "126.70",
+          "hours": "H24",
+          "provenance": "Ghana AIP ENR 2.1"
+        },
+        {
+          "unit": "Lomé Area Control Centre (ACC)",
+          "callsign": "Lomé ACC",
+          "frequency_mhz": "124.60",
+          "hf_khz": "6586",
+          "hours": "H24",
+          "provenance": "Ghana AIP ENR 2.1 / ASECNA eAIP"
+        },
+        {
+          "unit": "Cotonou Approach Control (APP)",
+          "callsign": "Cotonou Approach",
+          "frequency_mhz": "125.90",
+          "hf_khz": "6586",
+          "hours": "H24",
+          "provenance": "Ghana AIP ENR 2.1 / ASECNA eAIP"
+        }
+      ],
+      "provenance": "Ghana AIP ENR 2.1-1 & ASECNA eAIP Togo/Benin"
+    }
+  ],
+  "airspaces": [
+    {
+      "name": "ACCRA TMA",
+      "type": "TMA",
+      "class": "A",
+      "vertical_limits": "FL145 / FL245",
+      "controlling_unit": "Accra Approach / Radar (119.50 MHz)",
+      "hours": "H24",
+      "provenance": "Ghana AIP ENR 2.1-1"
+    },
+    {
+      "name": "LOME TMA",
+      "type": "TMA",
+      "class": "A",
+      "vertical_limits": "FL245 / UNL",
+      "controlling_unit": "Lomé ACC (124.60 MHz)",
+      "hours": "H24",
+      "provenance": "Ghana AIP ENR 2.1-2"
+    },
+    {
+      "name": "COTONOU TMA",
+      "type": "TMA",
+      "class": "D",
+      "vertical_limits": "GND / FL245",
+      "controlling_unit": "Cotonou Approach (125.90 MHz)",
+      "hours": "H24",
+      "provenance": "Ghana AIP ENR 2.1-3"
+    },
+    {
+      "name": "KUMASI TMA",
+      "type": "TMA",
+      "class": "C",
+      "vertical_limits": "1500FT AMSL / FL65",
+      "controlling_unit": "Kumasi Approach (118.90 MHz)",
+      "hours": "O/R",
+      "provenance": "Ghana AIP ENR 2.1-4"
+    },
+    {
+      "name": "TAMALE TMA",
+      "type": "TMA",
+      "class": "C",
+      "vertical_limits": "1500FT AMSL / FL65",
+      "controlling_unit": "Tamale Approach (118.70 MHz)",
+      "hours": "O/R",
+      "provenance": "Ghana AIP ENR 2.1-4"
+    }
+  ],
+  "control_zones": [
+    {
+      "identifier": "ACCRA CTR",
+      "aerodrome": "DGAA",
+      "radius_nm": 15,
+      "center": "053621N 0001019W",
+      "vertical_limits": "GND / 3000FT",
+      "class": "C",
+      "frequency_mhz": "118.10",
+      "hours": "H24",
+      "provenance": "Ghana AIP ENR 2.1-4"
+    },
+    {
+      "identifier": "KUMASI CTR",
+      "aerodrome": "DGSI",
+      "radius_nm": 10,
+      "center": "064254N 0013533W",
+      "vertical_limits": "GND / FL65",
+      "class": "C",
+      "frequency_mhz": "118.90",
+      "hours": "O/R",
+      "provenance": "Ghana AIP ENR 2.1-4"
+    },
+    {
+      "identifier": "SUNYANI CTR",
+      "aerodrome": "DGSN",
+      "radius_nm": 10,
+      "center": "072134N 0021945W",
+      "vertical_limits": "GND / 1500FT",
+      "class": "C",
+      "frequency_mhz": "118.50",
+      "hours": "O/R",
+      "provenance": "Ghana AIP ENR 2.1-4"
+    },
+    {
+      "identifier": "TAMALE CTR",
+      "aerodrome": "DGLE",
+      "radius_nm": 10,
+      "center": "093312N 0005146W",
+      "vertical_limits": "GND / 1500FT",
+      "class": "C",
+      "frequency_mhz": "118.70",
+      "hours": "O/R",
+      "provenance": "Ghana AIP ENR 2.1-4"
+    },
+    {
+      "identifier": "TAKORADI CTR",
+      "aerodrome": "DGTK",
+      "radius_nm": 15,
+      "center": "045340N 0014625W",
+      "vertical_limits": "GND / FL65",
+      "class": "C",
+      "frequency_mhz": "118.30",
+      "hours": "O/R",
+      "provenance": "Ghana AIP ENR 2.1-4"
+    },
+    {
+      "identifier": "LOME CTR",
+      "aerodrome": "DXXX",
+      "radius_nm": 10,
+      "center": "061103N 0011608E",
+      "vertical_limits": "GND / 1000FT",
+      "class": "D",
+      "frequency_mhz": "119.70",
+      "hours": "H24",
+      "provenance": "Ghana AIP ENR 2.1-4 / ASECNA eAIP"
+    },
+    {
+      "identifier": "NIAMTOUGOU CTR",
+      "aerodrome": "DXNG",
+      "radius_nm": 15,
+      "center": "094450N 0010458E",
+      "vertical_limits": "GND / 3000FT",
+      "class": "D",
+      "frequency_mhz": "119.10",
+      "hours": "0600-1800 UTC and O/R",
+      "provenance": "Ghana AIP ENR 2.1-4 / ASECNA eAIP"
+    },
+    {
+      "identifier": "COTONOU CTR",
+      "aerodrome": "DBBB",
+      "radius_nm": 10,
+      "center": "062144N 0022336E",
+      "vertical_limits": "GND / 1000FT",
+      "class": "D",
+      "frequency_mhz": "118.70",
+      "hours": "H24",
+      "provenance": "Ghana AIP ENR 2.1-4 / ASECNA eAIP"
+    }
+  ],
+  "navigation_warnings": {
+    "prohibited_areas": [
+      {
+        "identifier": "DG P12",
+        "name": "FLAGSTAFF HOUSE",
+        "center": "053441N 0001121W",
+        "radius_nm": 0.2,
+        "vertical_limits": "GND / 4000FT",
+        "restriction": "Permanent flight prohibition",
+        "provenance": "Ghana AIP ENR 5.1-1"
+      },
+      {
+        "identifier": "DG P13",
+        "name": "STATE HOUSE",
+        "center": "053329N 0001124W",
+        "radius_nm": 0.5,
+        "vertical_limits": "GND / 4000FT",
+        "restriction": "Permanent flight prohibition",
+        "provenance": "Ghana AIP ENR 5.1-1"
+      },
+      {
+        "identifier": "DG P14",
+        "name": "MINISTRY OF DEFENCE BUILDING",
+        "center": "053525N 0001036W",
+        "radius_m": 100,
+        "vertical_limits": "GND / 4000FT",
+        "restriction": "Permanent flight prohibition",
+        "provenance": "Ghana AIP ENR 5.1-1"
+      }
+    ],
+    "restricted_areas": [
+      {
+        "identifier": "DG R6",
+        "name": "TAKORADI MILITARY TRAINING AREA",
+        "center": "045400N 0014600W",
+        "radius_nm": 15,
+        "vertical_limits": "GND / FL65",
+        "activity": "Ghana Air Force Local Flying (VMC only)",
+        "provenance": "Ghana AIP ENR 5.1-1"
+      },
+      {
+        "identifier": "DG R7",
+        "name": "TAMALE AIR FORCE TRAINING AREA 1",
+        "coordinates": "083000N 0020000W - 083000N 0013000W - 092500N 0011000W - 100000N 0012500W - 100000N 0020000W",
+        "vertical_limits": "7000FT AGL / FL225",
+        "activity": "High Level Flying Training (0600-1830 daily)",
+        "provenance": "Ghana AIP ENR 5.1-1"
+      },
+      {
+        "identifier": "DG R8",
+        "name": "TAMALE AIR FORCE TRAINING AREA 2",
+        "coordinates": "092500N 0003200W - 092600N 0000100W - 082500N 0000100W - 083500N 0003200W",
+        "vertical_limits": "GND / FL65",
+        "activity": "Low Level Training (0600-1830 daily)",
+        "provenance": "Ghana AIP ENR 5.1-1"
+      },
+      {
+        "identifier": "DG R9",
+        "name": "TAMALE PARACHUTE AREA 1",
+        "center": "094400N 0005000W",
+        "radius_nm": 10,
+        "vertical_limits": "GND / 2000FT",
+        "activity": "Parachute dropping (Activation by NOTAM)",
+        "provenance": "Ghana AIP ENR 5.1-1"
+      },
+      {
+        "identifier": "DG R15",
+        "name": "TAKORADI RED TRAINING AREA",
+        "coordinates": "044831N 0015605W - 050113N 0024332W - 054106N 0022530W - 054404N 0022530W",
+        "vertical_limits": "GND / FL060",
+        "activity": "All types of training (Activation by NOTAM)",
+        "provenance": "Ghana AIP ENR 5.1-2"
+      },
+      {
+        "identifier": "DG R16",
+        "name": "TAKORADI GREEN TRAINING AREA",
+        "coordinates": "050115N 0013724W - 051200N 0010400W - 053312N 0005113W - 053614N 0013321W",
+        "vertical_limits": "200FT AGL / 3000FT",
+        "activity": "Low-level Navigation (LLNAV, Activation by NOTAM)",
+        "provenance": "Ghana AIP ENR 5.1-2"
+      }
+    ],
+    "danger_areas": [
+      {
+        "identifier": "DG D2",
+        "name": "BUNDASE MILITARY FIRING RANGE",
+        "center": "055050N 0000627E",
+        "radius_nm": 5,
+        "vertical_limits": "GND / 10000FT",
+        "activity": "Live Gun firing (Activation by NOTAM)",
+        "provenance": "Ghana AIP ENR 5.1-2"
+      },
+      {
+        "identifier": "DG D3",
+        "name": "TESHIE SHOOTING RANGE",
+        "center": "053648N 0000211W",
+        "radius_nm": 1,
+        "vertical_limits": "GND / 1200FT",
+        "activity": "Gun firing (Activation by NOTAM)",
+        "provenance": "Ghana AIP ENR 5.1-2"
+      },
+      {
+        "identifier": "DG D4",
+        "name": "SEKONDI / TAKORADI NAVAL FIRING AREA",
+        "coordinates": "044000N 0014500W - 044500N 0013500W - 044500N 0013000W - 043400N 0013000W",
+        "vertical_limits": "MSL / UNL",
+        "activity": "Naval Gun firing (Activation by NOTAM)",
+        "provenance": "Ghana AIP ENR 5.1-2"
+      },
+      {
+        "identifier": "DG D5",
+        "name": "TEMA NAVAL EXERCISE AREA",
+        "coordinates": "053500N 0000100E - 053500N 0002100E - 051200N 0002100E - 051200N 0000100E",
+        "vertical_limits": "MSL / UNL",
+        "activity": "Naval Gun firing (Activation by NOTAM)",
+        "provenance": "Ghana AIP ENR 5.1-2"
+      }
+    ]
+  },
+  "significant_points": [
+    {
+      "name": "AGREM",
+      "coordinates": "075424N 0024418W",
+      "routes": [
+        "UA604",
+        "UB731"
+      ]
+    },
+    {
+      "name": "AMPAN",
+      "coordinates": "053000N 0001500E",
+      "routes": [
+        "UQ581"
+      ]
+    },
+    {
+      "name": "AMSAT",
+      "coordinates": "092000N 0001000W",
+      "routes": [
+        "UM998"
+      ]
+    },
+    {
+      "name": "AMSIL",
+      "coordinates": "064500N 0012000W",
+      "routes": [
+        "UG853"
+      ]
+    },
+    {
+      "name": "ANUVO",
+      "coordinates": "061000N 0011500E",
+      "routes": [
+        "UR983"
+      ]
+    },
+    {
+      "name": "ARABA",
+      "coordinates": "045000N 0014000W",
+      "routes": [
+        "UA604"
+      ]
+    },
+    {
+      "name": "ARKOS",
+      "coordinates": "054000N 0002000W",
+      "routes": [
+        "UQ581"
+      ]
+    },
+    {
+      "name": "ARMAR",
+      "coordinates": "060000N 0001000W",
+      "routes": [
+        "UM998"
+      ]
+    },
+    {
+      "name": "AXIM",
+      "coordinates": "045200N 0021400W",
+      "routes": [
+        "UG853"
+      ]
+    },
+    {
+      "name": "BENIN",
+      "coordinates": "062000N 0023000E",
+      "routes": [
+        "UA604"
+      ]
+    },
+    {
+      "name": "KORLE",
+      "coordinates": "053100N 0001300W",
+      "routes": [
+        "STAR DGAA"
+      ]
+    },
+    {
+      "name": "TAKOR",
+      "coordinates": "045500N 0014500W",
+      "routes": [
+        "SID DGTK"
+      ]
+    },
+    {
+      "name": "TULON",
+      "coordinates": "052000N 0000500W",
+      "routes": [
+        "UA604"
+      ]
+    },
+    {
+      "name": "VOLTA",
+      "coordinates": "054600N 0003800E",
+      "routes": [
+        "UQ581"
+      ]
+    }
+  ],
+  "ats_routes": [
+    {
+      "designator": "UA604",
+      "type": "Upper RNAV",
+      "segment": "ACCRA - LOME - COTONOU - LAGOS",
+      "lower_limit": "FL245",
+      "upper_limit": "UNL",
+      "class": "A"
+    },
+    {
+      "designator": "UQ581",
+      "type": "Upper RNAV",
+      "segment": "ACCRA - TEMA - VOLTA - COTONOU",
+      "lower_limit": "FL245",
+      "upper_limit": "UNL",
+      "class": "A"
+    },
+    {
+      "designator": "UM998",
+      "type": "Upper RNAV",
+      "segment": "TAKORADI - ACCRA - KUMASI - TAMALE",
+      "lower_limit": "FL245",
+      "upper_limit": "UNL",
+      "class": "A"
+    },
+    {
+      "designator": "UG853",
+      "type": "Domestic / Regional",
+      "segment": "ACCRA - KUMASI - SUNYANI - WA",
+      "lower_limit": "FL150",
+      "upper_limit": "FL245",
+      "class": "D"
+    },
+    {
+      "designator": "UR983",
+      "type": "Regional Oceanic",
+      "segment": "GULF OF GUINEA OCEANIC TRANSIT",
+      "lower_limit": "FL245",
+      "upper_limit": "UNL",
+      "class": "A"
+    }
+  ],
+  "aerodromes": [
+    {
+      "icao_code": "DGAA",
+      "iata_code": "ACC",
+      "name": "Kotoka International Airport, Accra",
+      "country": "Ghana",
+      "fir_code": "DGAC",
+      "arp_latitude": 5.604414,
+      "arp_longitude": -0.167544,
+      "elevation_ft": 205,
+      "elevation_m": 62,
+      "magnetic_variation": "5°W (2020)",
+      "runways": [
+        "03/21"
+      ],
+      "runway_details": [
+        {
+          "designator": "03/21",
+          "dimensions": "3403m x 60m",
+          "surface": "Asphalt",
+          "pcn": "87/F/B/W/T",
+          "tora_m": 3403,
+          "toda_m": 3403,
+          "asda_m": 3403,
+          "lda_m": 3403,
+          "ils": "ILS Cat II RWY 21 (IACC 110.30 MHz)"
+        }
+      ],
+      "operating_hours": "H24",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.10"
+        },
+        {
+          "service": "Approach (APP)",
+          "frequency_mhz": "119.50"
+        },
+        {
+          "service": "Director (DIR)",
+          "frequency_mhz": "124.90"
+        },
+        {
+          "service": "Ground (GND)",
+          "frequency_mhz": "121.90"
+        },
+        {
+          "service": "ATIS",
+          "frequency_mhz": "128.05"
+        }
+      ],
+      "navaids": [
+        "ACC",
+        "IACC"
+      ],
+      "operator": "Ghana Airports Company Limited (GACL)",
+      "aftn": "DGAAYDYX",
+      "provenance": "Ghana AIP AD 2.DGAA"
+    },
+    {
+      "icao_code": "DGLE",
+      "iata_code": "TML",
+      "name": "Tamale International Airport",
+      "country": "Ghana",
+      "fir_code": "DGAC",
+      "arp_latitude": 9.554119,
+      "arp_longitude": -0.866281,
+      "elevation_ft": 549,
+      "elevation_m": 167,
+      "magnetic_variation": "3°W (2020)",
+      "runways": [
+        "05/23"
+      ],
+      "runway_details": [
+        {
+          "designator": "05/23",
+          "dimensions": "3400m x 45m",
+          "surface": "Asphalt",
+          "pcn": "75/F/B/W/T",
+          "tora_m": 3400,
+          "toda_m": 3400,
+          "asda_m": 3400,
+          "lda_m": 3400,
+          "ils": "ILS RWY 23 (ITML 109.90 MHz)"
+        }
+      ],
+      "operating_hours": "0600-1800 UTC and O/R",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.70"
+        },
+        {
+          "service": "Approach (APP)",
+          "frequency_mhz": "118.70"
+        }
+      ],
+      "navaids": [
+        "TML",
+        "ITML"
+      ],
+      "operator": "Ghana Airports Company Limited (GACL)",
+      "aftn": "DGLEYDYX",
+      "provenance": "Ghana AIP AD 2.DGLE"
+    },
+    {
+      "icao_code": "DGSI",
+      "iata_code": "KMS",
+      "name": "Kumasi / Prempeh I International Airport",
+      "country": "Ghana",
+      "fir_code": "DGAC",
+      "arp_latitude": 6.714583,
+      "arp_longitude": -1.590831,
+      "elevation_ft": 942,
+      "elevation_m": 287,
+      "magnetic_variation": "4°W (2020)",
+      "runways": [
+        "02/20"
+      ],
+      "runway_details": [
+        {
+          "designator": "02/20",
+          "dimensions": "2320m x 45m",
+          "surface": "Asphalt",
+          "pcn": "60/F/B/W/T",
+          "tora_m": 2320,
+          "toda_m": 2320,
+          "asda_m": 2320,
+          "lda_m": 2320
+        }
+      ],
+      "operating_hours": "0600-1800 UTC and O/R",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.90"
+        },
+        {
+          "service": "Approach (APP)",
+          "frequency_mhz": "118.90"
+        }
+      ],
+      "navaids": [
+        "KMS"
+      ],
+      "operator": "Ghana Airports Company Limited (GACL)",
+      "aftn": "DGSIYDYX",
+      "provenance": "Ghana AIP AD 2.DGSI"
+    },
+    {
+      "icao_code": "DGAH",
+      "iata_code": "HZO",
+      "name": "Ho Airport",
+      "country": "Ghana",
+      "fir_code": "DGAC",
+      "arp_latitude": 6.579706,
+      "arp_longitude": 0.532561,
+      "elevation_ft": 356,
+      "elevation_m": 108,
+      "runways": [
+        "04/22"
+      ],
+      "runway_details": [
+        {
+          "designator": "04/22",
+          "dimensions": "1900m x 30m",
+          "surface": "Asphalt",
+          "pcn": "35/F/B/W/T",
+          "tora_m": 1900,
+          "toda_m": 1900,
+          "asda_m": 1900,
+          "lda_m": 1900
+        }
+      ],
+      "operating_hours": "0600-1800 UTC O/R",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.40"
+        }
+      ],
+      "navaids": [],
+      "provenance": "Ghana AIP AD 2.DGAH"
+    },
+    {
+      "icao_code": "DGSN",
+      "iata_code": "NYI",
+      "name": "Sunyani Airport",
+      "country": "Ghana",
+      "fir_code": "DGAC",
+      "arp_latitude": 7.361892,
+      "arp_longitude": -2.328678,
+      "elevation_ft": 994,
+      "elevation_m": 303,
+      "runways": [
+        "07/25"
+      ],
+      "runway_details": [
+        {
+          "designator": "07/25",
+          "dimensions": "1520m x 30m",
+          "surface": "Asphalt",
+          "pcn": "28/F/B/W/T",
+          "tora_m": 1520,
+          "toda_m": 1520,
+          "asda_m": 1520,
+          "lda_m": 1520
+        }
+      ],
+      "operating_hours": "0600-1800 UTC O/R",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.50"
+        }
+      ],
+      "navaids": [],
+      "provenance": "Ghana AIP AD 2.DGSN"
+    },
+    {
+      "icao_code": "DGTK",
+      "iata_code": "TKD",
+      "name": "Takoradi Airport",
+      "country": "Ghana",
+      "fir_code": "DGAC",
+      "arp_latitude": 4.8952,
+      "arp_longitude": -1.775156,
+      "elevation_ft": 20,
+      "elevation_m": 6,
+      "runways": [
+        "04/22"
+      ],
+      "runway_details": [
+        {
+          "designator": "04/22",
+          "dimensions": "1750m x 45m",
+          "surface": "Asphalt",
+          "pcn": "42/F/B/W/T",
+          "tora_m": 1750,
+          "toda_m": 1750,
+          "asda_m": 1750,
+          "lda_m": 1750
+        }
+      ],
+      "operating_hours": "0600-1800 UTC and O/R to GAF",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.30"
+        }
+      ],
+      "navaids": [
+        "TAD"
+      ],
+      "provenance": "Ghana AIP AD 2.DGTK"
+    },
+    {
+      "icao_code": "DGLW",
+      "iata_code": "WZA",
+      "name": "Wa Airport",
+      "country": "Ghana",
+      "fir_code": "DGAC",
+      "arp_latitude": 10.082583,
+      "arp_longitude": -2.507861,
+      "elevation_ft": 1009,
+      "elevation_m": 308,
+      "runways": [
+        "02/20"
+      ],
+      "runway_details": [
+        {
+          "designator": "02/20",
+          "dimensions": "2000m x 30m",
+          "surface": "Asphalt",
+          "pcn": "30/F/B/W/T",
+          "tora_m": 2000,
+          "toda_m": 2000,
+          "asda_m": 2000,
+          "lda_m": 2000
+        }
+      ],
+      "operating_hours": "0600-1800 UTC O/R",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.20"
+        }
+      ],
+      "navaids": [],
+      "provenance": "Ghana AIP AD 2.DGLW"
+    },
+    {
+      "icao_code": "DGLN",
+      "iata_code": null,
+      "name": "Navrongo Airstrip",
+      "country": "Ghana",
+      "fir_code": "DGAC",
+      "arp_latitude": 10.943081,
+      "arp_longitude": -1.087356,
+      "elevation_ft": 678,
+      "elevation_m": 207,
+      "runways": [],
+      "navaids": [],
+      "provenance": "Ghana AIP AD 2.DGLN"
+    },
+    {
+      "icao_code": "DXXX",
+      "iata_code": "LFW",
+      "name": "Aéroport International Gnassingbé Eyadéma, Lomé",
+      "country": "Togo",
+      "fir_code": "DGAC",
+      "arp_latitude": 6.165833,
+      "arp_longitude": 1.254167,
+      "elevation_ft": 72,
+      "elevation_m": 22,
+      "magnetic_variation": "2°W (2025)",
+      "runways": [
+        "04/22"
+      ],
+      "runway_details": [
+        {
+          "designator": "04/22",
+          "dimensions": "3001m x 45m",
+          "surface": "Bitume / Asphalt",
+          "pcn": "56/F/B/W/T",
+          "tora_m": 3001,
+          "toda_m": 3001,
+          "asda_m": 3001,
+          "lda_m": 3001,
+          "ils": "ILS Cat I RWY 04 (110.10 MHz)"
+        }
+      ],
+      "operating_hours": "H24",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "119.70"
+        },
+        {
+          "service": "Approach (APP)",
+          "frequency_mhz": "124.60"
+        },
+        {
+          "service": "Ground (GND)",
+          "frequency_mhz": "121.70"
+        }
+      ],
+      "navaids": [
+        "LM",
+        "LME"
+      ],
+      "operator": "Société Aéroportuaire de Lomé-Tokoin (SALT)",
+      "aftn": "DXXXYKYX",
+      "provenance": "ASECNA eAIP AD-2.DXXX eff. 06 AUG 2026"
+    },
+    {
+      "icao_code": "DXNG",
+      "iata_code": "LRL",
+      "name": "Aéroport International de Niamtougou, Kara",
+      "country": "Togo",
+      "fir_code": "DGAC",
+      "arp_latitude": 9.769444,
+      "arp_longitude": 1.091111,
+      "elevation_ft": 1515,
+      "elevation_m": 462,
+      "magnetic_variation": "2°W (2025)",
+      "runways": [
+        "03/21"
+      ],
+      "runway_details": [
+        {
+          "designator": "03/21",
+          "dimensions": "2500m x 45m",
+          "surface": "Béton Bitumineux",
+          "pcn": "45/F/B/W/T",
+          "tora_m": 2500,
+          "toda_m": 2500,
+          "asda_m": 2500,
+          "lda_m": 2500
+        }
+      ],
+      "operating_hours": "0600-1800 UTC and O/R",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "119.10"
+        },
+        {
+          "service": "Approach (APP)",
+          "frequency_mhz": "119.10"
+        }
+      ],
+      "navaids": [],
+      "aftn": "DXNGYDYX",
+      "provenance": "ASECNA eAIP AD-2.DXNG"
+    },
+    {
+      "icao_code": "DXAK",
+      "iata_code": "ATP",
+      "name": "Aérodrome d'Atakpamé (Akpaka)",
+      "country": "Togo",
+      "fir_code": "DGAC",
+      "arp_latitude": 7.520833,
+      "arp_longitude": 1.191667,
+      "elevation_ft": 689,
+      "elevation_m": 210,
+      "runways": [],
+      "navaids": [],
+      "provenance": "ASECNA / OurAirports (DXAK)"
+    },
+    {
+      "icao_code": "DXSK",
+      "iata_code": null,
+      "name": "Aérodrome de Sokodé",
+      "country": "Togo",
+      "fir_code": "DGAC",
+      "arp_latitude": 8.994444,
+      "arp_longitude": 1.152778,
+      "elevation_ft": 1214,
+      "elevation_m": 370,
+      "runways": [
+        "03/21"
+      ],
+      "navaids": [],
+      "provenance": "ASECNA / OurAirports (DXSK)"
+    },
+    {
+      "icao_code": "DBBB",
+      "iata_code": "COO",
+      "name": "Aéroport International Cardinal Bernardin Gantin / Cadjehoun, Cotonou",
+      "country": "Benin",
+      "fir_code": "DGAC",
+      "arp_latitude": 6.356389,
+      "arp_longitude": 2.383333,
+      "elevation_ft": 19,
+      "elevation_m": 6,
+      "magnetic_variation": "2°W (2025)",
+      "runways": [
+        "06/24"
+      ],
+      "runway_details": [
+        {
+          "designator": "06/24",
+          "dimensions": "2400m x 45m",
+          "surface": "Asphalt",
+          "pcn": "54/F/B/W/T",
+          "tora_m": 2400,
+          "toda_m": 2400,
+          "asda_m": 2400,
+          "lda_m": 2400,
+          "ils": "ILS Cat I RWY 24 (109.50 MHz)"
+        }
+      ],
+      "operating_hours": "H24",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.70"
+        },
+        {
+          "service": "Approach (APP)",
+          "frequency_mhz": "125.90"
+        },
+        {
+          "service": "Ground (GND)",
+          "frequency_mhz": "121.90"
+        }
+      ],
+      "navaids": [
+        "CBB"
+      ],
+      "operator": "Autorité de l'Aviation Civile du Bénin (ANAC)",
+      "aftn": "DBBBYQYX",
+      "provenance": "ASECNA eAIP AD-2.DBBB eff. 24 FEB 2022, amended 14 MAY 2026"
+    },
+    {
+      "icao_code": "DBBP",
+      "iata_code": "PKO",
+      "name": "Aérodrome de Parakou",
+      "country": "Benin",
+      "fir_code": "DGAC",
+      "arp_latitude": 9.357222,
+      "arp_longitude": 2.609167,
+      "elevation_ft": 1266,
+      "elevation_m": 386,
+      "runways": [
+        "04/22"
+      ],
+      "runway_details": [
+        {
+          "designator": "04/22",
+          "dimensions": "1600m x 30m",
+          "surface": "Latérite / Laterite",
+          "tora_m": 1600,
+          "toda_m": 1600,
+          "asda_m": 1600,
+          "lda_m": 1600
+        }
+      ],
+      "operating_hours": "0600-1730 UTC and O/R",
+      "ats_frequencies": [
+        {
+          "service": "Tower (TWR)",
+          "frequency_mhz": "118.10"
+        }
+      ],
+      "navaids": [],
+      "provenance": "ASECNA eAIP AD-2.DBBP eff. 09 JUL 2026"
+    },
+    {
+      "icao_code": "DBBN",
+      "iata_code": "NAE",
+      "name": "Aérodrome de Natitingou (Boundétingou)",
+      "country": "Benin",
+      "fir_code": "DGAC",
+      "arp_latitude": 10.376972,
+      "arp_longitude": 1.3605,
+      "elevation_ft": 1512,
+      "elevation_m": 461,
+      "runways": [
+        "04/22"
+      ],
+      "navaids": [],
+      "provenance": "ASECNA / OurAirports / Wikipedia (DBBN)"
+    },
+    {
+      "icao_code": "DBBK",
+      "iata_code": "KDC",
+      "name": "Aérodrome de Kandi",
+      "country": "Benin",
+      "fir_code": "DGAC",
+      "arp_latitude": 11.1445,
+      "arp_longitude": 2.940444,
+      "elevation_ft": 958,
+      "elevation_m": 292,
+      "runways": [
+        "07/25"
+      ],
+      "navaids": [],
+      "provenance": "ASECNA / OurAirports / Wikipedia (DBBK)"
+    },
+    {
+      "icao_code": "DBBO",
+      "iata_code": null,
+      "name": "Aérodrome de Porga",
+      "country": "Benin",
+      "fir_code": "DGAC",
+      "arp_latitude": 11.04,
+      "arp_longitude": 0.97,
+      "elevation_ft": 531,
+      "elevation_m": 162,
+      "runways": [
+        "05/23"
+      ],
+      "navaids": [],
+      "provenance": "ASECNA / OurAirports (DBBO)"
+    }
+  ],
+  "navaids": [
+    {
+      "ident": "ACC",
+      "type": "VOR/DME",
+      "name": "Accra VOR/DME",
+      "frequency": "115.10",
+      "associated_aerodrome": "DGAA",
+      "country": "Ghana",
+      "coordinates": "053608N 0001017W",
+      "provenance": "Ghana AIP ENR 4.1"
+    },
+    {
+      "ident": "IACC",
+      "type": "ILS/DME",
+      "name": "Accra ILS RWY 21",
+      "frequency": "110.30",
+      "associated_aerodrome": "DGAA",
+      "country": "Ghana",
+      "provenance": "Ghana AIP AD 2.DGAA"
+    },
+    {
+      "ident": "TML",
+      "type": "VOR/DME",
+      "name": "Tamale VOR/DME",
+      "frequency": "112.60",
+      "associated_aerodrome": "DGLE",
+      "country": "Ghana",
+      "coordinates": "093340N 0005147W",
+      "provenance": "Ghana AIP ENR 4.1"
+    },
+    {
+      "ident": "ITML",
+      "type": "ILS",
+      "name": "Tamale ILS RWY 23",
+      "frequency": "109.90",
+      "associated_aerodrome": "DGLE",
+      "country": "Ghana",
+      "provenance": "Ghana AIP AD 2.DGLE"
+    },
+    {
+      "ident": "KMS",
+      "type": "NDB",
+      "name": "Kumasi NDB",
+      "frequency": "368",
+      "associated_aerodrome": "DGSI",
+      "country": "Ghana",
+      "coordinates": "064312N 0013518W",
+      "provenance": "Ghana AIP ENR 4.2"
+    },
+    {
+      "ident": "TAD",
+      "type": "NDB",
+      "name": "Takoradi NDB",
+      "frequency": "357",
+      "associated_aerodrome": "DGTK",
+      "country": "Ghana",
+      "coordinates": "045330N 0014612W",
+      "provenance": "Ghana AIP ENR 4.2"
+    },
+    {
+      "ident": "LM",
+      "type": "VOR/DME",
+      "name": "Lomé VOR/DME",
+      "frequency": "115.30",
+      "associated_aerodrome": "DXXX",
+      "country": "Togo",
+      "coordinates": "060956N 0011516E",
+      "provenance": "ASECNA eAIP AD-2.DXXX"
+    },
+    {
+      "ident": "LME",
+      "type": "NDB",
+      "name": "Lomé NDB",
+      "frequency": "379",
+      "associated_aerodrome": "DXXX",
+      "country": "Togo",
+      "coordinates": "061030N 0011500E",
+      "provenance": "ASECNA eAIP AD-2.DXXX"
+    },
+    {
+      "ident": "CBB",
+      "type": "VOR/DME",
+      "name": "Cotonou VOR/DME",
+      "frequency": "112.90",
+      "associated_aerodrome": "DBBB",
+      "country": "Benin",
+      "coordinates": "062123N 0022300E",
+      "provenance": "ASECNA eAIP AD-2.DBBB"
+    }
+  ]
+}

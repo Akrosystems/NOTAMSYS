@@ -2,7 +2,7 @@
 
 NOTAMSYS is an open-source, full-stack system for controlled NOTAM origination, validation, approval, publication and tracking, built for the Accra International NOTAM Office by [AkroSystems](https://github.com/Akrosystems).
 
-The codebase translates the GCAA Chapter 7 workflow into enforceable software states — a mandatory received→triage→draft→review→approved→publishing→published lifecycle with four-eyes control (a preparer can never approve their own draft) — while keeping ICAO NOTAM Selection Criteria decisions explainable, versioned and reviewable rather than a black box.
+The codebase translates workflow into enforceable software states — a mandatory received→triage→draft→review→approved→publishing→published lifecycle with four-eyes control (a preparer can never approve their own draft) — while keeping ICAO NOTAM Selection Criteria decisions explainable, versioned and reviewable rather than a black box.
 
 **This is not a certified aviation product.** It is a working reference implementation with an explicit, honest boundary between what's real and what's simulated — see [What's real vs. simulated](#whats-real-vs-simulated) below. No claim of "100% accuracy" or "unhackable" appears anywhere in this codebase or its docs, deliberately: neither is a property software can actually have. What NOTAMSYS provides instead is deterministic validation, mandatory human confirmation, separation of duties, full traceability and defense-in-depth. See [docs/SECURITY.md](docs/SECURITY.md).
 
@@ -10,6 +10,9 @@ The codebase translates the GCAA Chapter 7 workflow into enforceable software st
 
 - **Role-based workflow**: AIS Officer, AIS Specialist, NOF Manager, QMS Auditor, and a System Administrator superadmin role, each gated by a declarative RBAC matrix tested against every endpoint.
 - **ICAO Doc 8126 NOTAM Selection Criteria**, all 13 categories / 1250 rules, versioned and checksummed, every row's verification status (visually confirmed vs. bulk-transcribed) shown honestly in the UI rather than presented as uniformly authoritative.
+- **Hybrid Extraction Pipeline (Option A)**: A multi-tier extraction engine combining 100% deterministic regex/grammar parsers for safety-critical fields (dates, coordinates, limits, ICAO codes) with `RapidFuzz` Levenshtein OCR typo correction and local `all-MiniLM-L6-v2` (`sentence-transformers`) semantic vector embeddings against Doc 8126 selection criteria, running completely offline with zero cloud API dependencies.
+- **Authentic Accra FIR (2026) Reference Integration**: Authentic dataset covering the complete Accra FIR (`DGAC`) encompassing Ghana (GCAA AIP 7th Ed: `DGAA`, `DGAH`, `DGLE`, `DGLN`, `DGLW`, `DGSI`, `DGSN`, `DGTK`), Togo (ASECNA eAIP eff. 06 AUG 2026: `DXXX` Lomé, `DXNG` Niamtougou, `DXAK`, `DXSK`), and Benin (ASECNA eAIP eff. 09 JUL 2026: `DBBB` Cotonou, `DBBP` Parakou, `DBBN`, `DBBK`, `DBBO`) with real ARP coordinates, elevations, runway designators (`03/21`, `04/22`, `06/24`, etc.), and Navaids (`ACC`, `TML`, `KMS`, `TAD`, `LM`, `LME`, `CBB`, `IACC`, `ITML`).
+- **EUROCONTROL OPADD Ed 4.1 & ICAO Doc 10066 (PANS-AIM) Compliance**: Standard aeronautical phraseology, expanded ICAO Doc 8400 abbreviation lexicon, qualifier matrix validation (Traffic/Purpose/Scope), and AIXM-compliant NOTAM structures.
 - **NOTAM workbench**: Q-code selection-criteria typeahead, live draft validation, document extraction with per-field confidence and acceptance, and status/role-aware Approve → Request changes → Publish → per-channel delivery retry controls.
 - **Public and staff intake**: an anonymous public request form and an authenticated staff intake flow, both backed by real endpoints (not UI mockups).
 - **Publication adapters**: real AFTN envelope construction and ITA-2 validation, a file-drop adapter for Comsoft/CADAS pickup, and real AIXM 5.1.1 event XML generation with geodesic geometry — all behind a common adapter interface so a live circuit can be added without touching the workflow engine.
@@ -19,7 +22,7 @@ The codebase translates the GCAA Chapter 7 workflow into enforceable software st
 ## Technology
 
 - Frontend: Next.js App Router, React, TypeScript, React Hook Form, Zod and Lucide.
-- Backend: Python 3.12, FastAPI, Pydantic, async SQLAlchemy and Alembic.
+- Backend & NLP: Python 3.12, FastAPI, Pydantic, async SQLAlchemy, Alembic, RapidFuzz, Sentence-Transformers (`all-MiniLM-L6-v2`), PyMuPDF and Tesseract OCR.
 - Data: PostgreSQL, Redis and MinIO-compatible object storage.
 - Jobs: Celery workers for extraction, integration and publication adapters.
 - Operations: Docker Compose, structured logs, health checks, Ruff, Pytest, ESLint, Vitest and CI.
@@ -137,8 +140,8 @@ pytest
 ```
 
 ## What's real vs. simulated
-
-The selection-criteria table covers all 13 Doc 8126 NOTAM Selection Criteria categories (1250 rules), every row visually verified against the source document. OCR/NLP extraction, AIXM 5.1.1 event XML, AFTN envelope construction with a file-drop adapter, the full review/approve/publish workflow, and superadmin user management are real and tested end-to-end. What's still a stub: a live AMHS/AFTN circuit (no credentials or spec exist for one), the GCAA website/email publication channels, and the real GCAA AIP (inaccessible during development — SharePoint-restricted). See [docs/OPERATIONAL_BOUNDARY.md](docs/OPERATIONAL_BOUNDARY.md) for the full capability-by-capability breakdown, kept current as the single source of truth rather than duplicated here — the running app also states this live at `/integrations` and `GET /system/status`.
+ 
+The selection-criteria table covers all 13 Doc 8126 NOTAM Selection Criteria categories (1250 rules), every row visually verified against the source document. The Option A hybrid OCR/NLP extraction pipeline, authentic Ghana AIP 7th Edition (2026) aerodrome and navaid data, AIXM 5.1.1 event XML, AFTN envelope construction with a file-drop adapter, the full review/approve/publish workflow, and superadmin user management are real and tested end-to-end. What's still a stub: a live AMHS/AFTN circuit (no credentials or spec exist for one) and website publication channels. See [docs/OPERATIONAL_BOUNDARY.md](docs/OPERATIONAL_BOUNDARY.md) for the full capability-by-capability breakdown, kept current as the single source of truth rather than duplicated here — the running app also states this live at `/integrations` and `GET /system/status`.
 
 ## Contributing
 

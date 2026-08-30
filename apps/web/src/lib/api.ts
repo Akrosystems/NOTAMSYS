@@ -1,5 +1,6 @@
 import { dashboardSummary, requests } from "./demo-data";
 import type {
+  ActiveNotam,
   AdminUser,
   AipDatasetSummary,
   AuditEventEntry,
@@ -13,6 +14,7 @@ import type {
   NotamRequest,
   NotamRequestInput,
   PublicationDelivery,
+  PublishedNotam,
   QCodeSuggestion,
   RuleCatalogEntry,
   RuleMatch,
@@ -55,6 +57,29 @@ async function authHeader(): Promise<Record<string, string>> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function parseApiError(errorBody: unknown, defaultMsg: string): string {
+  if (!errorBody || typeof errorBody !== "object") return defaultMsg;
+  const body = errorBody as Record<string, unknown>;
+  if (typeof body.detail === "string") {
+    return body.detail;
+  }
+  if (Array.isArray(body.detail)) {
+    return body.detail
+      .map((e: { loc?: string[]; msg?: string }) => `${e.loc?.slice(-1)[0] || "field"}: ${e.msg}`)
+      .join("; ");
+  }
+  if (typeof body.detail === "object" && body.detail !== null) {
+    const detailObj = body.detail as Record<string, unknown>;
+    if (Array.isArray(detailObj.errors) && detailObj.errors.length > 0) {
+      const prefix = typeof detailObj.message === "string" ? `${detailObj.message} — ` : "";
+      return `${prefix}${detailObj.errors.join("; ")}`;
+    }
+    if (typeof detailObj.message === "string") return detailObj.message;
+  }
+  if (typeof body.message === "string") return body.message;
+  return defaultMsg;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const auth = await authHeader();
   const response = await fetch(`${API_URL}${path}`, {
@@ -63,8 +88,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store"
   });
   if (!response.ok) {
-    const detail = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(typeof detail.detail === "string" ? detail.detail : "NOTAMSYS request failed");
+    const errorBody = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(parseApiError(errorBody, "NOTAMSYS request failed"));
   }
   return response.json() as Promise<T>;
 }
@@ -76,8 +101,8 @@ async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store"
   });
   if (!response.ok) {
-    const detail = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(typeof detail.detail === "string" ? detail.detail : "NOTAMSYS request failed");
+    const errorBody = await response.json().catch(() => ({ detail: response.statusText }));
+    throw new Error(parseApiError(errorBody, "NOTAMSYS request failed"));
   }
   return response.json() as Promise<T>;
 }
@@ -179,9 +204,34 @@ export async function getRuleByQcode(code: string): Promise<RuleMatch | null> {
   catch { return null; }
 }
 
-export async function getQCodeSuggestions(narrative: string): Promise<QCodeSuggestion[]> {
-  try { return await request<QCodeSuggestion[]>("/rules/qcode-suggestions", { method: "POST", body: JSON.stringify({ narrative }) }); }
-  catch { return []; }
+export async function getQCodeSuggestions(narrative: string, locationIndicator?: string): Promise<QCodeSuggestion[]> {
+  try {
+    return await request<QCodeSuggestion[]>("/rules/qcode-suggestions", {
+      method: "POST",
+      body: JSON.stringify({ narrative, location_indicator: locationIndicator || undefined })
+    });
+  } catch {
+    return [];
+  }
+}
+
+export async function recordQCodeCorrection(payload: {
+  request_id?: string;
+  location_indicator?: string;
+  narrative: string;
+  suggested_q_code?: string;
+  suggested_confidence?: number;
+  chosen_q_code: string;
+  suggestion_was_in_top5: boolean;
+}): Promise<void> {
+  try {
+    await request("/rules/qcode-corrections", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  } catch {
+    // Non-blocking telemetry
+  }
 }
 
 export async function getExtraction(requestId: string): Promise<ExtractionRun | null> {
@@ -268,6 +318,34 @@ export async function removeBrandingLogo(): Promise<Branding> {
   return rewriteLogoUrl(await request<Branding>("/admin/branding/logo", { method: "DELETE" }));
 }
 
+export async function getActiveNotams(series?: "A" | "B"): Promise<ActiveNotam[]> {
+  const query = series ? `?series=${series}` : "";
+  try {
+    return await request<ActiveNotam[]>(`/notams${query}`);
+  } catch {
+    return [];
+  }
+}
+
+export async function getPublishedNotams(params?: {
+  series?: "A" | "B";
+  location?: string;
+  status?: string;
+  search?: string;
+}): Promise<PublishedNotam[]> {
+  const query = new URLSearchParams();
+  if (params?.series) query.set("series", params.series);
+  if (params?.location) query.set("location", params.location);
+  if (params?.status) query.set("status", params.status);
+  if (params?.search) query.set("search", params.search);
+  const qStr = query.toString() ? `?${query.toString()}` : "";
+  try {
+    return await request<PublishedNotam[]>(`/notams${qStr}`);
+  } catch {
+    return [];
+  }
+}
+
 export async function getRequestNotam(requestId: string): Promise<NotamDraftResult | null> {
   return request<NotamDraftResult | null>(`/requests/${requestId}/notam`);
 }
@@ -279,6 +357,15 @@ export async function getDeliveries(notamId: string): Promise<PublicationDeliver
 export async function retryDelivery(deliveryId: string): Promise<PublicationDelivery> {
   return request<PublicationDelivery>(`/deliveries/${deliveryId}/retry`, { method: "POST" });
 }
+
+export async function acknowledgeDelivery(deliveryId: string): Promise<PublicationDelivery> {
+  return request<PublicationDelivery>(`/deliveries/${deliveryId}/acknowledge`, { method: "POST" });
+}
+
+export async function markRequestPublished(requestId: string): Promise<NotamRequest> {
+  return request<NotamRequest>(`/requests/${requestId}/mark-published`, { method: "POST" });
+}
+
 
 export async function listUsers(): Promise<AdminUser[]> {
   return request<AdminUser[]>("/admin/users");

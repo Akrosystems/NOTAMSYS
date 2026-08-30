@@ -15,10 +15,13 @@ coverage/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.pytest_tmp/
+.pytest_temp/
 .ruff_cache/
 .mypy_cache/
 .venv/
 htmlcov/
+/data/
 
 # Runtime data -- note this is deliberately anchored to apps/api/data/, the
 # generated sqlite db + evidence upload directory. An unanchored "data/"

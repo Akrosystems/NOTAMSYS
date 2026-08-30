@@ -151,7 +151,7 @@ async def _seed_users_and_reference_data(session: AsyncSession) -> None:
         )
     )
 
-    aip_payload = load_aip_payload()
+    aip_payload = load_aip_payload("ghana_aip_2026.json")
     aip_dataset = AipDataset(
         version=aip_payload["version"],
         source=aip_payload["source"],
@@ -176,8 +176,12 @@ async def _seed_users_and_reference_data(session: AsyncSession) -> None:
             Aerodrome(
                 dataset_id=aip_dataset.id,
                 icao_code=row["icao_code"],
+                iata_code=row.get("iata_code"),
                 name=row["name"],
                 fir_id=firs_by_code[row["fir_code"]].id if row.get("fir_code") else None,
+                arp_latitude=row.get("arp_latitude"),
+                arp_longitude=row.get("arp_longitude"),
+                elevation_ft=row.get("elevation_ft"),
                 provenance=row["provenance"],
             )
         )

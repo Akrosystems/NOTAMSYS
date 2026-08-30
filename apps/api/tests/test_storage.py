@@ -5,6 +5,7 @@ import pytest
 from app.services.storage import EvidenceStorage
 
 
+@pytest.mark.asyncio
 async def test_put_get_round_trip(tmp_path) -> None:
     backend = EvidenceStorage(root=tmp_path)
     request_id = uuid.uuid4()
@@ -13,6 +14,7 @@ async def test_put_get_round_trip(tmp_path) -> None:
     assert await backend.get(stored.key) == content
 
 
+@pytest.mark.asyncio
 async def test_sha256_and_key_stable_for_identical_content(tmp_path) -> None:
     backend = EvidenceStorage(root=tmp_path)
     request_id = uuid.uuid4()
@@ -23,12 +25,14 @@ async def test_sha256_and_key_stable_for_identical_content(tmp_path) -> None:
     assert first.key == second.key
 
 
+@pytest.mark.asyncio
 async def test_get_missing_key_raises(tmp_path) -> None:
     backend = EvidenceStorage(root=tmp_path)
     with pytest.raises(FileNotFoundError):
         await backend.get("requests/does-not-exist/00-missing.txt")
 
 
+@pytest.mark.asyncio
 async def test_oversize_upload_rejected(tmp_path, monkeypatch) -> None:
     from app.services import storage as storage_module
 

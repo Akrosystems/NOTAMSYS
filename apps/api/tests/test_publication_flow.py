@@ -352,8 +352,8 @@ def test_retry_stays_publishing_when_one_channel_still_fails_after_retry(
         asyncio.run(engine.dispose())
 
 
-def test_retry_delivery_requires_nof_manager(tmp_path) -> None:
-    engine, sessions = _prepare(tmp_path, "pub_retry_rbac.db")
+def test_manual_publication_and_channel_acknowledgement(tmp_path) -> None:
+    engine, sessions = _prepare(tmp_path, "pub_manual_ack.db")
 
     async def override_session():
         async with sessions() as session:
@@ -366,15 +366,24 @@ def test_retry_delivery_requires_nof_manager(tmp_path) -> None:
             specialist_headers = _login(client, "specialist@example.com")
             request_id, notam_id = _approved_notam(client, officer_headers, specialist_headers)
             client.post(f"/api/v1/requests/{request_id}/publish", headers=officer_headers)
+
             deliveries = client.get(
                 f"/api/v1/notams/{notam_id}/deliveries", headers=officer_headers
             ).json()
             delivery_id = deliveries[0]["id"]
 
-            forbidden = client.post(
-                f"/api/v1/deliveries/{delivery_id}/retry", headers=officer_headers
+            ack = client.post(
+                f"/api/v1/deliveries/{delivery_id}/acknowledge", headers=officer_headers
             )
-            assert forbidden.status_code == 403
+            assert ack.status_code == 200
+            assert ack.json()["status"] == "acknowledged"
+
+            mark_pub = client.post(
+                f"/api/v1/requests/{request_id}/mark-published", headers=officer_headers
+            )
+            assert mark_pub.status_code == 200
+            assert mark_pub.json()["status"] == "published"
     finally:
         app.dependency_overrides.clear()
         asyncio.run(engine.dispose())
+

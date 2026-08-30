@@ -6,21 +6,54 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import type { AipDatasetSummary, AuditEventEntry, ExtractionRun, NotamDraftResult, NotamRequest, PublicationDelivery, QCodeSuggestion, RuleMatch, SystemStatus, WorkflowStatus } from "@/lib/types";
-import { acceptExtractedField, getAipDataset, getAuditEvents, getDeliveries, getExtraction, getQCodeSuggestions, getRequestNotam, getRuleByQcode, getSystemStatus, rerunExtraction, retryDelivery, saveDraft, workflowAction } from "@/lib/api";
+import type { ActiveNotam, AipDatasetSummary, AuditEventEntry, ExtractionRun, NotamDraftResult, NotamRequest, PublicationDelivery, QCodeSuggestion, RuleMatch, SystemStatus, WorkflowStatus } from "@/lib/types";
+import { acceptExtractedField, acknowledgeDelivery, getActiveNotams, getAipDataset, getAuditEvents, getDeliveries, getExtraction, getQCodeSuggestions, getRequestNotam, getRuleByQcode, getSystemStatus, markRequestPublished, recordQCodeCorrection, rerunExtraction, retryDelivery, saveDraft, workflowAction } from "@/lib/api";
+import { formatUtcDateTime } from "@/lib/time";
 import { StatusPill } from "./status-pill";
 import { useCurrentUser } from "./user-context";
+import { UtcDateTimeInput } from "./utc-datetime-input";
 
+// Explicit interface matching form field values -- all optional/empty-able
+// fields are declared here as string (react-hook-form always sends strings from
+// input elements). Sanitization/defaulting is done in the submit handler.
+interface FormData {
+  series: "A" | "B";
+  kind: "NOTAMN" | "NOTAMR" | "NOTAMC";
+  replaces_notam_id?: string;
+  fir: string;
+  q_code: string;
+  traffic: string;
+  purpose: string;
+  scope: string;
+  lower_limit: string;
+  upper_limit: string;
+  coordinates_radius: string;
+  item_a: string;
+  item_b: string;
+  item_c: string;
+  item_c_qualifier: "" | "EST" | "PERM";
+  item_d: string;
+  item_e: string;
+  item_f: string;
+  item_g: string;
+  aip_supplement_reference: string;
+}
+
+// Zod schema validates the form before submission.
+// All fields are plain z.string() so the input type matches FormData exactly.
+// Limits/coordinates may be empty -- they default in the submit handler.
 const schema = z.object({
   series: z.enum(["A", "B"]), kind: z.enum(["NOTAMN", "NOTAMR", "NOTAMC"]),
+  replaces_notam_id: z.string().optional(),
   fir: z.string().length(4), q_code: z.string().regex(/^Q[A-Z]{4}$/), traffic: z.string().min(1),
-  purpose: z.string().min(1), scope: z.string().min(1), lower_limit: z.string().regex(/^\d{3}$/),
-  upper_limit: z.string().regex(/^\d{3}$/), coordinates_radius: z.string().regex(/^\d{4}[NS]\d{5}[EW]\d{3}$/),
-  item_a: z.string().min(4).max(8), item_b: z.string().min(16), item_c: z.string().min(16),
+  purpose: z.string().min(1), scope: z.string().min(1),
+  lower_limit: z.string(),
+  upper_limit: z.string(),
+  coordinates_radius: z.string(),
+  item_a: z.string().min(4).max(8), item_b: z.string().min(16), item_c: z.string(),
   item_c_qualifier: z.enum(["", "EST", "PERM"]), item_d: z.string(), item_e: z.string().min(3).max(1000),
   item_f: z.string(), item_g: z.string(), aip_supplement_reference: z.string()
 });
-type FormData = z.infer<typeof schema>;
 
 // Seeds the form from the actual request when no draft has been saved yet
 // (every newly-entered request, before the officer types anything) -- never
@@ -35,6 +68,7 @@ type FormData = z.infer<typeof schema>;
 function defaultsFromRequest(request: NotamRequest): FormData {
   return {
     series: request.requested_series ?? "A", kind: request.requested_kind,
+    replaces_notam_id: "",
     // GCAA administers exactly one FIR (confirmed live: GET /reference/firs
     // returns a single "DGAC" / Accra FIR row) -- defaulting to it isn't a
     // guess about this request's content, it's a fixed fact of what this
@@ -84,8 +118,9 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
   const [deliveries,setDeliveries]=useState<PublicationDelivery[] | null>(null);
   const [systemStatus,setSystemStatus]=useState<SystemStatus | null>(null);
   const [aipDataset,setAipDataset]=useState<AipDatasetSummary | null>(null);
+  const [activeNotams,setActiveNotams]=useState<ActiveNotam[]>([]);
   const [qCodeSuggestions,setQCodeSuggestions]=useState<QCodeSuggestion[]>([]);
-  const {register,handleSubmit,watch,reset,setValue,formState:{errors}}=useForm<FormData>({resolver:zodResolver(schema),defaultValues:defaultsFromRequest(request)});
+  const {register,handleSubmit,watch,reset,setValue,getValues,trigger,formState:{errors}}=useForm<FormData>({resolver:zodResolver(schema),defaultValues:defaultsFromRequest(request)});
   const values=watch();
   const isEditable = EDITABLE_STATUSES.includes(request.status);
 
@@ -97,7 +132,7 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
       if(!EDITABLE_STATUSES.includes(request.status))return;
       if(notam){
         reset({
-          series:notam.series,kind:notam.kind,fir:notam.fir,q_code:notam.q_code,
+          series:notam.series,kind:notam.kind,replaces_notam_id:notam.replaces_notam_id??"",fir:notam.fir,q_code:notam.q_code,
           traffic:notam.traffic,purpose:notam.purpose,scope:notam.scope,
           lower_limit:notam.lower_limit,upper_limit:notam.upper_limit,coordinates_radius:notam.coordinates_radius,
           item_a:notam.item_a,item_b:toLocalInput(notam.item_b),item_c:notam.item_c?toLocalInput(notam.item_c):"",
@@ -120,9 +155,31 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
     getExtraction(request.id).then((run)=>{if(!cancelled)setExtraction(run)}).catch(()=>{if(!cancelled)setExtraction(null)});
     getSystemStatus().then((s)=>{if(!cancelled)setSystemStatus(s)}).catch(()=>{});
     getAipDataset().then((d)=>{if(!cancelled)setAipDataset(d)}).catch(()=>{if(!cancelled)setAipDataset(null)});
+    getActiveNotams().then((list)=>{
+      if(cancelled)return;
+      setActiveNotams(list);
+      if(request.referenced_notam_number && !getValues("replaces_notam_id")){
+        const match = list.find((n) => n.identifier.toUpperCase() === request.referenced_notam_number?.toUpperCase());
+        if(match) setValue("replaces_notam_id", match.id);
+      }
+    }).catch(()=>{if(!cancelled)setActiveNotams([])});
     return ()=>{cancelled=true};
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[request.id]);
+
+  // Poll system status every 2 s while the semantic model is still loading
+  // weights, then stop automatically once it becomes "ready" or "unavailable".
+  // Without this the banner stays visible even after the backend finishes.
+  useEffect(()=>{
+    if(systemStatus?.semantic_model_status !== "loading")return;
+    const timer=window.setInterval(()=>{
+      getSystemStatus().then((s)=>{
+        setSystemStatus(s);
+        if(s.semantic_model_status !== "loading")window.clearInterval(timer);
+      }).catch(()=>{});
+    },2000);
+    return ()=>window.clearInterval(timer);
+  },[systemStatus?.semantic_model_status]);
 
   useEffect(()=>{
     if((request.status!=="publishing"&&request.status!=="published")||!lastDraft)return;
@@ -175,16 +232,33 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
     if(!isEditable||values.q_code||!values.item_e||values.item_e.trim().length<8){setQCodeSuggestions([]);return}
     let cancelled=false;
     const timer=window.setTimeout(()=>{
-      getQCodeSuggestions(values.item_e).then((list)=>{if(!cancelled)setQCodeSuggestions(list)});
+      getQCodeSuggestions(values.item_e, values.item_a).then((list)=>{if(!cancelled)setQCodeSuggestions(list)});
     },500);
     return ()=>{cancelled=true;window.clearTimeout(timer)};
-  },[values.item_e,values.q_code,isEditable]);
+  },[values.item_e,values.item_a,values.q_code,isEditable]);
 
   const applyQCodeSuggestion=(suggestion:QCodeSuggestion)=>{
+    const topSuggestion = qCodeSuggestions[0];
+    const isOverride = topSuggestion && topSuggestion.q_code !== suggestion.q_code;
+    
+    // Asynchronously record selection/correction feedback
+    recordQCodeCorrection({
+      request_id: request?.id,
+      location_indicator: values.item_a,
+      narrative: values.item_e || "",
+      suggested_q_code: topSuggestion?.q_code,
+      suggested_confidence: topSuggestion?.confidence,
+      chosen_q_code: suggestion.q_code,
+      suggestion_was_in_top5: true,
+    });
+
     setValue("q_code",suggestion.q_code,{shouldValidate:true,shouldDirty:true});
-    setValue("traffic",suggestion.traffic,{shouldDirty:true});
+    setValue("traffic",suggestion.traffic,{shouldValidate:true,shouldDirty:true});
     setValue("purpose",suggestion.purpose,{shouldDirty:true});
     setValue("scope",suggestion.scope,{shouldDirty:true});
+    setValue("lower_limit",suggestion.lower_limit||"000",{shouldValidate:true,shouldDirty:true});
+    setValue("upper_limit",suggestion.upper_limit||"999",{shouldValidate:true,shouldDirty:true});
+    setValue("coordinates_radius",suggestion.coordinates_radius||"0536N00010W025",{shouldValidate:true,shouldDirty:true});
     setQCodeSuggestions([]);
   };
 
@@ -203,26 +277,72 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
     }catch(err){setExtractionError(err instanceof Error?err.message:"Could not accept field.")}
   };
 
+  // Core save logic extracted so both the "Save draft" button and
+  // "Submit for review" can share it -- and crucially so sendForReview
+  // can await a real rejection when saving fails, instead of the silent
+  // swallow that react-hook-form's handleSubmit produces internally.
+  const saveDraftData=async(data: Parameters<typeof handleSubmit>[0] extends (d: infer D) => unknown ? D : never)=>{
+    const isoItemB = data.item_b ? new Date(`${data.item_b}:00Z`).toISOString() : undefined;
+    const isPerm = data.item_c_qualifier === "PERM";
+    const isCancel = data.kind === "NOTAMC";
+    const isReplace = data.kind === "NOTAMR";
+    const hasItemC = data.item_c && data.item_c.trim().length >= 16;
+    const isoItemC = (!isCancel && !isPerm && hasItemC)
+      ? new Date(`${data.item_c}:00Z`).toISOString()
+      : undefined;
+    const payload = data as unknown as FormData;
+    const result=await saveDraft(request.id,{
+      series: payload.series, kind: payload.kind,
+      replaces_notam_id: (isCancel || isReplace) ? (payload.replaces_notam_id || undefined) : undefined,
+      fir: payload.fir,
+      q_code: payload.q_code, traffic: payload.traffic, purpose: payload.purpose, scope: payload.scope,
+      lower_limit: payload.lower_limit || "000",
+      upper_limit: payload.upper_limit || "999",
+      coordinates_radius: payload.coordinates_radius || "0536N00010W025",
+      item_a: payload.item_a,
+      item_b: isoItemB!,
+      item_c: isoItemC,
+      item_c_qualifier: isCancel ? undefined : (payload.item_c_qualifier || undefined),
+      item_d: payload.item_d || undefined,
+      item_e: payload.item_e,
+      item_f: payload.item_f || undefined,
+      item_g: payload.item_g || undefined,
+      aip_supplement_reference: payload.aip_supplement_reference || undefined,
+    });
+    setLastDraft(result);
+    return result;
+  };
+
+  // "Save draft" button: validates the form then saves, showing notice inline.
   const submit=handleSubmit(async(data)=>{
     setBusy(true);
     try{
-      const result=await saveDraft(request.id,{...data,item_b:new Date(`${data.item_b}:00Z`).toISOString(),item_c:new Date(`${data.item_c}:00Z`).toISOString(),item_c_qualifier:data.item_c_qualifier||undefined});
-      setLastDraft(result);
+      const result=await saveDraftData(data);
       setNotice(result.validation_result.valid?"Draft saved to the controlled audit record.":"Draft saved with validation issues -- resolve before submitting.");
       setTab("validation");
     }catch(err){setNotice(err instanceof Error?err.message:"Draft could not be saved.")}
     finally{setBusy(false)}
   });
+
+  // "Submit for review": validates + saves draft first, then transitions.
+  // Using getValues() + trigger() instead of handleSubmit() so we get a
+  // real promise rejection when the form is invalid or the save fails --
+  // handleSubmit swallows errors internally and always resolves, which
+  // previously let workflowAction run even when no draft was saved.
   const sendForReview=async()=>{
     setBusy(true);
     try{
-      await submit();
+      const valid=await trigger();
+      if(!valid){setNotice("Please fix the highlighted fields before submitting.");setBusy(false);return}
+      const data=getValues();
+      await saveDraftData(data as Parameters<typeof saveDraftData>[0]);
       await workflowAction(request.id,"submit");
       setNotice("Request locked and submitted for independent specialist review.");
       router.refresh();
     }catch(err){setNotice(err instanceof Error?err.message:"Could not submit the request for review.")}
     finally{setBusy(false)}
   };
+
   const doApprove=async()=>{
     setBusy(true);
     try{
@@ -260,12 +380,40 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
       setDeliveries((current)=>current?current.map((row)=>row.id===updated.id?updated:row):current);
     }catch(err){setNotice(err instanceof Error?err.message:"Retry failed.")}
   };
+  const doMarkPublished=async()=>{
+    setBusy(true);
+    try{
+      await markRequestPublished(request.id);
+      setNotice("Marked as published. Manual confirmation recorded in audit trail.");
+      router.refresh();
+    }catch(err){setNotice(err instanceof Error?err.message:"Could not mark as published.")}
+    finally{setBusy(false)}
+  };
+  const doManualDeliveryAck=async(deliveryId:string)=>{
+    try{
+      const updated=await acknowledgeDelivery(deliveryId);
+      setDeliveries((current)=>current?current.map((row)=>row.id===updated.id?updated:row):current);
+      setNotice(`Channel ${updated.channel} marked as delivered.`);
+      router.refresh();
+    }catch(err){setNotice(err instanceof Error?err.message:"Could not acknowledge delivery.")}
+  };
 
   const step = STEP_STATE[request.status];
-  const preview=`(${lastDraft?`${lastDraft.series}${String(lastDraft.serial_number).padStart(4,"0")}/${String(lastDraft.year%100).padStart(2,"0")}`:"PREVIEW"} ${values.kind}\nQ)${values.fir}/${values.q_code}/${values.traffic}/${values.purpose}/${values.scope}/${values.lower_limit}/${values.upper_limit}/${values.coordinates_radius}\nA)${values.item_a} B)${dtg(values.item_b)} C)${dtg(values.item_c)}${values.item_c_qualifier}\nE)${values.item_e}\nF)${values.item_f} G)${values.item_g})`;
+  let itemCPreview = "";
+  if (values.kind !== "NOTAMC") {
+    if (values.item_c_qualifier === "PERM") {
+      itemCPreview = " C)PERM";
+    } else if (values.item_c && values.item_c.length >= 16) {
+      itemCPreview = ` C)${dtg(values.item_c)}${values.item_c_qualifier || ""}`;
+    }
+  }
+  const selectedReplaced = activeNotams.find((n) => n.id === values.replaces_notam_id);
+  const replacedIdentifier = (values.kind === "NOTAMR" || values.kind === "NOTAMC") && selectedReplaced ? ` ${selectedReplaced.identifier}` : "";
+  const preview=`(${lastDraft?`${lastDraft.series}${String(lastDraft.serial_number).padStart(4,"0")}/${String(lastDraft.year%100).padStart(2,"0")}`:"PREVIEW"} ${values.kind}${replacedIdentifier}\nQ)${values.fir}/${values.q_code}/${values.traffic}/${values.purpose}/${values.scope}/${values.lower_limit}/${values.upper_limit}/${values.coordinates_radius}\nA)${values.item_a} B)${dtg(values.item_b)}${itemCPreview}\nE)${values.item_e}\nF)${values.item_f} G)${values.item_g})`;
 
   const canReview = request.status==="review" && !!user && REVIEW_ROLES.includes(user.role);
   const canPublish = request.status==="approved" && !!user && PUBLISH_ROLES.includes(user.role);
+  const canManagePublish = !!user && PUBLISH_ROLES.includes(user.role);
   const canRetry = !!user && RETRY_ROLES.includes(user.role);
 
   return <div className="workbench">
@@ -277,7 +425,10 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
           <button className="button primary" onClick={sendForReview} disabled={busy}><Send/>{busy?"Working…":"Submit for review"}</button>
         </> : null}
         {canPublish ? <button className="button primary" onClick={doPublish} disabled={busy}><Send/>{busy?"Publishing…":"Publish"}</button> : null}
-        {!isEditable && !canReview && !canPublish ? <span className="workbench-readonly-note">Read only at this stage</span> : null}
+        {(request.status === "publishing" || (request.status === "approved" && deliveries && deliveries.some(d => d.status === "failed"))) && canManagePublish ? (
+          <button className="button secondary" onClick={doMarkPublished} disabled={busy}><CheckCheck/>{busy ? "Updating…" : "Mark as published"}</button>
+        ) : null}
+        {!isEditable && !canReview && !canPublish && request.status !== "publishing" ? <span className="workbench-readonly-note">Read only at this stage</span> : null}
       </div>
     </header>
     <div className="workflow-steps">{[["1","Ingest","Source captured"],["2","Prepare","Validate & format"],["3","Review","Specialist approval"],["4","Publish","AFTN & channels"]].map(([number,title,copy],index)=><div className={`workflow-step ${index<=step.done?"done":index===step.active?"active":""}`} key={title}><span>{index<=step.done?<Check/>:number}</span><strong>{title}</strong><small>{copy}</small>{index<3?<i/>:null}</div>)}</div>
@@ -304,9 +455,35 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
     </aside>
       <section className="editor-pane"><div className="editor-tabs"><button className={tab==="editor"?"active":""} onClick={()=>setTab("editor")}>{isEditable?"NOTAM editor":"Prepared NOTAM"}</button><button className={tab==="validation"?"active":""} onClick={()=>setTab("validation")}>Validation {lastDraft&&!lastDraft.validation_result.valid?<span>{lastDraft.validation_result.errors.length}</span>:null}</button><button className={tab==="history"?"active":""} onClick={()=>setTab("history")}>History</button></div>
       {tab==="editor" && isEditable ?<form onSubmit={submit} className="notam-form">
-        <FormSection number="01" title="Identity & classification" copy="Series and message relationship"><div className="field-grid four"><Field label="Series" error={errors.series?.message}><select {...register("series")}><option value="A">Series A · International</option><option value="B">Series B · Local</option></select></Field><Field label="Message type"><select {...register("kind")}><option>NOTAMN</option><option>NOTAMR</option><option>NOTAMC</option></select></Field><Field label="Serial"><input value={lastDraft?`${lastDraft.series}${String(lastDraft.serial_number).padStart(4,"0")}/${String(lastDraft.year%100).padStart(2,"0")}`:"Assigned on save"} readOnly/></Field><Field label="FIR"><input {...register("fir")}/></Field></div></FormSection>
+        <FormSection number="01" title="Identity & classification" copy="Series and message relationship">
+          <div className="field-grid four">
+            <Field label="Series" error={errors.series?.message}><select {...register("series")}><option value="A">Series A · International</option><option value="B">Series B · Local</option></select></Field>
+            <Field label="Message type"><select {...register("kind")}><option value="NOTAMN">NOTAMN · New</option><option value="NOTAMR">NOTAMR · Replace</option><option value="NOTAMC">NOTAMC · Cancel</option></select></Field>
+            <Field label="Serial"><input value={lastDraft?`${lastDraft.series}${String(lastDraft.serial_number).padStart(4,"0")}/${String(lastDraft.year%100).padStart(2,"0")}`:"Assigned on save"} readOnly/></Field>
+            <Field label="FIR"><input {...register("fir")}/></Field>
+            {(values.kind === "NOTAMR" || values.kind === "NOTAMC") ? (
+              <Field label={values.kind === "NOTAMR" ? "Replaces NOTAM" : "Cancels NOTAM"} error={errors.replaces_notam_id?.message}>
+                <select {...register("replaces_notam_id")}>
+                  <option value="">Select target NOTAM…</option>
+                  {activeNotams.map((notam) => (
+                    <option key={notam.id} value={notam.id}>
+                      {notam.identifier} ({notam.item_a})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
+          </div>
+        </FormSection>
         <FormSection number="02" title="Q-line selection criteria" copy="ICAO Doc 8126, Part III, Appendix G">
-        {qCodeSuggestions.length>0?<div className="qcode-suggestions"><strong>Suggested Q-codes from Item E — pick one or ignore</strong><div className="qcode-suggestion-list">{qCodeSuggestions.map((suggestion)=><button type="button" key={suggestion.q_code} className="qcode-suggestion-chip" onClick={()=>applyQCodeSuggestion(suggestion)}><code>{suggestion.q_code}</code><span>{suggestion.subject} · {suggestion.condition}</span><small>{suggestion.confidence}%</small></button>)}</div></div>:null}
+        {systemStatus?.semantic_model_status === "loading" && isEditable ? (
+          <div className="semantic-loading-banner">
+            <span className="semantic-loading-spinner" aria-hidden="true" />
+            <span>Loading semantic model weights — Q-code suggestions will appear shortly</span>
+          </div>
+        ) : null}
+        {qCodeSuggestions.length>0?<div className="qcode-suggestions"><strong>Suggested Q-codes from Item E — pick one or ignore</strong><div className="qcode-suggestion-list">{qCodeSuggestions.map((suggestion)=><button type="button" key={suggestion.q_code} className={`qcode-suggestion-chip ${suggestion.confidence >= 80 ? "qcode-chip-high-conf" : ""}`} onClick={()=>applyQCodeSuggestion(suggestion)}><code>{suggestion.q_code}</code><span>{suggestion.subject} · {suggestion.condition}{suggestion.confidence >= 80 ? <span className="high-conf-tag">Recommended Match</span> : null}<em style={{display:"block",fontSize:"0.74rem",opacity:0.85,marginTop:"2px",fontWeight:"normal"}}>Q) {suggestion.traffic}/{suggestion.purpose}/{suggestion.scope}/{suggestion.lower_limit||"000"}/{suggestion.upper_limit||"999"}/{suggestion.coordinates_radius||"0536N00010W025"}</em></span><small>{suggestion.confidence}%</small></button>)}</div></div>:null}
+
         <div className="rule-match">
           <code>{values.q_code}</code>
           <div>
@@ -317,8 +494,8 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
           </div>
           <button type="button" onClick={()=>setTab("validation")}>Explain <ChevronRight/></button>
         </div><div className="field-grid qline"><Field label="Q-code" error={errors.q_code?.message}><input {...register("q_code")}/></Field><Field label="Traffic"><input {...register("traffic")}/></Field><Field label="Purpose"><input {...register("purpose")}/></Field><Field label="Scope"><input {...register("scope")}/></Field><Field label="Lower"><input {...register("lower_limit")}/></Field><Field label="Upper"><input {...register("upper_limit")}/></Field><Field label="Coordinates / radius"><input {...register("coordinates_radius")}/></Field></div></FormSection>
-        <FormSection number="03" title="Location & validity" copy="All values normalized to UTC"><div className="field-grid four"><Field label="Item A) location"><input {...register("item_a")}/></Field><Field label="Item B) start UTC"><input type="datetime-local" {...register("item_b")}/></Field><Field label="Item C) end UTC"><input type="datetime-local" {...register("item_c")}/></Field><Field label="Qualifier"><select {...register("item_c_qualifier")}><option value="">Confirmed</option><option>EST</option><option>PERM</option></select></Field></div>
-        {values.item_c_qualifier==="PERM"?<div className="field-grid two"><Field label="AIP Supplement reference"><input placeholder="e.g. AIP SUP 04/26" {...register("aip_supplement_reference")}/></Field></div>:null}
+        <FormSection number="03" title="Location & validity" copy="All values normalized to UTC"><div className="field-grid four"><Field label="Item A) location"><input {...register("item_a")}/></Field><Field label="Item B) start UTC" error={errors.item_b?.message}><UtcDateTimeInput value={values.item_b} onChange={(val)=>setValue("item_b",val,{shouldValidate:true,shouldDirty:true})} required/></Field><Field label={values.kind==="NOTAMC"?"Item C) end UTC (Omitted for NOTAMC)":values.item_c_qualifier==="PERM"?"Item C) end UTC (Omitted for PERM)":"Item C) end UTC"} error={errors.item_c?.message}><UtcDateTimeInput value={values.item_c} onChange={(val)=>setValue("item_c",val,{shouldValidate:true,shouldDirty:true})} disabled={values.kind==="NOTAMC"||values.item_c_qualifier==="PERM"}/></Field><Field label="Qualifier"><select disabled={values.kind==="NOTAMC"} {...register("item_c_qualifier")}><option value="">Confirmed</option><option>EST</option><option>PERM</option></select></Field></div>
+        {values.item_c_qualifier==="PERM" && values.kind!=="NOTAMC"?<div className="field-grid two"><Field label="AIP Supplement reference"><input placeholder="e.g. AIP SUP 04/26" {...register("aip_supplement_reference")}/></Field></div>:null}
         </FormSection>
         <FormSection number="04" title="NOTAM text" copy="Operational plain language for PIB"><Field label="Item E)" error={errors.item_e?.message}><textarea rows={4} {...register("item_e")}/></Field><div className="field-grid two"><Field label="Item F) lower limit"><input {...register("item_f")}/></Field><Field label="Item G) upper limit"><input {...register("item_g")}/></Field></div></FormSection>
         <div className="transmission-preview"><div><strong>Transmission preview</strong><span>ICAO text NOTAM</span></div><pre>{lastDraft?lastDraft.formatted_message:preview}</pre></div>
@@ -332,13 +509,30 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
         </div> : <>
           <div className="transmission-preview"><div><strong>Prepared NOTAM</strong><span>ICAO text NOTAM · read only at this stage</span></div><pre>{lastDraft.formatted_message}</pre></div>
           {(request.status==="publishing"||request.status==="published") ? <div className="delivery-table">
-            <h3>Channel delivery status</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <h3 style={{ margin: 0 }}>Channel delivery status</h3>
+              {request.status === "publishing" && canManagePublish ? (
+                <button type="button" className="button secondary" style={{ fontSize: "0.75rem", padding: "4px 8px" }} onClick={doMarkPublished} disabled={busy}>
+                  <CheckCheck size={14}/> Mark all delivered
+                </button>
+              ) : null}
+            </div>
             {deliveries===null ? <p>Loading delivery status…</p> : null}
             {deliveries&&deliveries.length===0 ? <p>No deliveries recorded yet.</p> : null}
             {deliveries?.map((delivery)=><div className={`delivery-row status-${delivery.status}`} key={delivery.id}>
-              <div><strong>{delivery.channel}</strong><small>{delivery.destination}</small></div>
+              <div>
+                <strong>{delivery.channel}</strong>
+                <small>{delivery.destination}{delivery.response_payload?.manual_acknowledgement ? " · manual confirmation" : ""}</small>
+              </div>
               <span className={`delivery-status-tag status-${delivery.status}`}>{delivery.status}</span>
-              {delivery.status==="failed"&&canRetry ? <button type="button" onClick={()=>doRetry(delivery.id)}><RefreshCw/>Retry</button> : null}
+              <div style={{ display: "flex", gap: "6px" }}>
+                {delivery.status==="failed" ? <>
+                  <button type="button" onClick={()=>doRetry(delivery.id)}><RefreshCw/>Retry</button>
+                  {canManagePublish ? (
+                    <button type="button" onClick={()=>doManualDeliveryAck(delivery.id)}><Check/>Mark delivered</button>
+                  ) : null}
+                </> : null}
+              </div>
             </div>)}
           </div> : null}
         </>}
@@ -358,7 +552,7 @@ export function NotamWorkbench({ request }: { request: NotamRequest }) {
       {tab==="history"?<div className="history-pane">
         {historyLoading?<p>Loading history…</p>:null}
         {!historyLoading&&history.length===0?<p>No audit events recorded yet.</p>:null}
-        {history.map((event)=><div className="history-row" key={event.id}><span>{new Date(event.created_at).toLocaleString(undefined,{hour:"2-digit",minute:"2-digit"})}</span><History/><div><strong>{event.action.replace(/_/g," ")}</strong><p>{event.actor_name}{event.from_state&&event.to_state?` · ${event.from_state} → ${event.to_state}`:""}</p></div></div>)}
+        {history.map((event)=><div className="history-row" key={event.id}><span>{formatUtcDateTime(event.created_at)}</span><History/><div><strong>{event.action.replace(/_/g," ")}</strong><p>{event.actor_name}{event.from_state&&event.to_state?` · ${event.from_state} → ${event.to_state}`:""}</p></div></div>)}
       </div>:null}
       </section>
       <aside className="assurance-pane"><div className="pane-title"><div><h2>Assurance</h2><p>Live rules & evidence</p></div><span className="score-badge">{lastDraft?(lastDraft.validation_result.valid?"OK":"ISSUES"):"—"}</span></div><AssuranceBlock title="Mandatory gates" items={mandatoryGateItems(lastDraft)}/><AssuranceBlock title="Rule provenance" items={provenanceItems(aipDataset)}/><AssuranceBlock title="Downstream products" items={downstreamItems(systemStatus)}/></aside>
@@ -396,8 +590,8 @@ function provenanceItems(aipDataset: AipDatasetSummary | null): AssuranceItem[] 
     { tone: "ok", label: "ICAO Doc 8126 · Appendix G" },
     { tone: "ok", label: "GCAA AIS Manual · Chapter 7" },
     aipDataset
-      ? { tone: aipDataset.source === "seed" ? "warn" : "ok", label: `Ghana AIP · ${aipDataset.version}${aipDataset.source === "seed" ? " (seed data, not AIRAC-current)" : ""}` }
-      : { tone: "warn", label: "Ghana AIP · no dataset active" }
+      ? { tone: aipDataset.source === "seed" ? "warn" : "ok", label: `Accra FIR AIP · ${aipDataset.version}${aipDataset.source === "seed" ? " (seed data, not AIRAC-current)" : ""}` }
+      : { tone: "warn", label: "Accra FIR AIP · no dataset active" }
   ];
 }
 
