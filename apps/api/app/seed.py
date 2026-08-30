@@ -101,7 +101,38 @@ async def seed() -> None:
         await _seed_aip_reference_data(session)
         await _seed_sample_notam_drafts(session)
         await _seed_email_intake_user(session)
+        await _revalidate_existing_drafts(session)
         await session.commit()
+
+
+async def _revalidate_existing_drafts(session: AsyncSession) -> None:
+    """Re-evaluate validation results for all existing drafts against the currently active AIP dataset."""
+    aerodromes = (
+        await session.scalars(
+            select(Aerodrome).join(AipDataset).where(AipDataset.active.is_(True))
+        )
+    ).all()
+    firs = (
+        await session.scalars(select(Fir).join(AipDataset).where(AipDataset.active.is_(True)))
+    ).all()
+    known_codes = {a.icao_code for a in aerodromes} | {f.icao_code for f in firs}
+    if not known_codes:
+        return
+    notams = (await session.scalars(select(Notam))).all()
+    for notam in notams:
+        subject, condition = notam.q_code[1:3], notam.q_code[3:5]
+        val = validate_selection(
+            subject, condition, notam.traffic, notam.purpose, notam.scope, notam.kind
+        )
+        warnings = list(val["warnings"])
+        if len(notam.item_a) == 4 and notam.item_a.isalpha():
+            if known_codes and notam.item_a.upper() not in known_codes:
+                warnings.append(
+                    f"Item A location indicator {notam.item_a.upper()} was not found in the "
+                    "active AIP reference dataset -- confirm it is correct before approval"
+                )
+        val["warnings"] = warnings
+        notam.validation_result = val
 
 
 async def _seed_aip_reference_data(session: AsyncSession) -> None:

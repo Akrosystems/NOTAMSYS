@@ -54,7 +54,14 @@ async function authHeader(): Promise<Record<string, string>> {
   if (typeof window !== "undefined") return {};
   const { cookies } = await import("next/headers");
   const store = await cookies();
-  const token = store.get("notamsys_access")?.value;
+  let token = store.get("notamsys_access")?.value;
+  if (!token) {
+    const refreshToken = store.get("notamsys_refresh")?.value;
+    if (refreshToken) {
+      const { refreshAccessToken } = await import("@/lib/session-refresh");
+      token = (await refreshAccessToken(refreshToken)) ?? undefined;
+    }
+  }
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -89,6 +96,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     cache: "no-store"
   });
   if (!response.ok) {
+    if (response.status === 401 && typeof window === "undefined") {
+      const { redirect } = await import("next/navigation");
+      redirect("/login?reason=expired");
+    }
     const errorBody = await response.json().catch(() => ({ detail: response.statusText }));
     throw new Error(parseApiError(errorBody, "NOTAMSYS request failed"));
   }
