@@ -21,6 +21,8 @@ __pycache__/
 .mypy_cache/
 .venv/
 htmlcov/
+.coverage
+.coverage.*
 /data/
 
 # Runtime data -- note this is deliberately anchored to apps/api/data/, the
