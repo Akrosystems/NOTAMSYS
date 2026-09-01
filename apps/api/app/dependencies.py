@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 
 import jwt
 from fastapi import Depends, HTTPException, Security, status
@@ -13,9 +14,6 @@ from app.models import Role, User
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 _service_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
-
-from datetime import UTC, datetime
 
 
 async def get_current_user(
