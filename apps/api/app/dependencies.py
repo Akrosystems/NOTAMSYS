@@ -1,6 +1,7 @@
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
+from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException, Security, status
@@ -44,7 +45,7 @@ async def get_current_user(
     return user
 
 
-def require_roles(*roles: Role) -> Callable[..., User]:
+def require_roles(*roles: Role) -> Callable[..., Coroutine[Any, Any, User]]:
     async def dependency(user: User = Depends(get_current_user)) -> User:
         # SYSTEM_ADMIN is a superset of every other role -- one bypass here
         # instead of listing it in every require_roles(...) call at every
