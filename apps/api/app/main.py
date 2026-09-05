@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -9,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.router import router
 from app.core.config import settings
 from app.core.database import Base, engine
+from app.services.extraction.semantic import get_semantic_matcher
 
 logger = structlog.get_logger()
 
@@ -19,6 +21,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if settings.environment == "development" and settings.database_url.startswith("sqlite"):
         async with engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+    # Warm up semantic embeddings in a background thread so the server starts
+    # immediately and handles traffic without blocking the event loop.
+    asyncio.create_task(asyncio.to_thread(get_semantic_matcher().warmup))
     logger.info("application_started", environment=settings.environment)
     yield
     await engine.dispose()

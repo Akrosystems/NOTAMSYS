@@ -24,5 +24,9 @@ COPY migrations ./migrations
 # tesseract binary above versus what's pure Python (PDF text-layer
 # extraction only needs pymupdf, not tesseract at all).
 RUN pip install --no-cache-dir ".[ocr]"
+# Pre-download semantic embedding model weights during image build so the
+# container starts with weights baked into disk -- avoiding slow runtime downloads
+# or HuggingFace network latency/timeouts on production hosts (e.g. Render).
+RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]

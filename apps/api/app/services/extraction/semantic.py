@@ -10,6 +10,7 @@ Tier 2 of the three-tier suggestion pipeline (keyword_rules -> lexical -> semant
 from __future__ import annotations
 
 import logging
+import threading
 from functools import lru_cache
 from typing import Any
 
@@ -21,7 +22,7 @@ _MODEL_NAME = "all-MiniLM-L6-v2"
 _EMBEDDING_CACHE: dict[str, Any] = {}
 
 # Module-level flag: True while sentence-transformers weights are being
-# downloaded/loaded for the first time. Used by /system/status so the
+# loaded/encoded for the first time. Used by /system/status so the
 # frontend can show a loader instead of silently waiting for suggestions.
 _model_loading: bool = False
 
@@ -92,54 +93,71 @@ class SemanticRuleMatcher:
         self._rules: tuple[SelectionRule, ...] = ()
         self._rule_embeddings: Any = None
         self._initialized = False
+        self._lock = threading.Lock()
+
+    @property
+    def is_ready(self) -> bool:
+        return self._initialized and self._model is not None and self._rule_embeddings is not None
 
     @property
     def model_status(self) -> str:
         """Returns 'loading', 'ready', or 'unavailable' for the frontend loader."""
+        global _model_loading
         if _model_loading:
             return "loading"
-        if self._initialized and self._model is not None:
-            return "ready"
-        if self._initialized and self._model is None:
-            return "unavailable"
-        # Not yet triggered -- report loading so the UI knows to expect it
-        return "loading"
+        if self._initialized:
+            return "ready" if self._model is not None else "unavailable"
+        return "ready"
+
+    def warmup(self) -> bool:
+        """Explicit warmup method called during startup lifespan or on-demand."""
+        return self._initialize()
 
     def _initialize(self) -> bool:
         global _model_loading
-        if self._initialized:
-            return self._model is not None
+        with self._lock:
+            if self._initialized:
+                return self._model is not None
 
-        self._initialized = True
-        _model_loading = True
-        try:
-            from sentence_transformers import SentenceTransformer  # type: ignore
+            _model_loading = True
+            try:
+                from sentence_transformers import SentenceTransformer  # type: ignore
 
-            logger.info("Initializing semantic embedding model %s", self.model_name)
-            self._model = SentenceTransformer(self.model_name)
-            catalog = get_catalog()
-            self._rules = catalog.rules
+                logger.info("Initializing semantic embedding model %s", self.model_name)
+                self._model = SentenceTransformer(self.model_name)
+                catalog = get_catalog()
+                self._rules = catalog.rules
 
-            # Build synonym-enriched rule text for each rule so the embedding
-            # model matches non-standard phrasing (e.g. "strip" -> MW, etc.)
-            rule_texts = [_build_rule_text(r) for r in self._rules]
-            self._rule_embeddings = self._model.encode(
-                rule_texts, convert_to_tensor=True, show_progress_bar=False
-            )
-            return True
-        except Exception as exc:  # pragma: no cover
-            logger.warning("Semantic model initialization skipped or failed: %s", exc)
-            self._model = None
-            return False
-        finally:
-            _model_loading = False
+                # Build synonym-enriched rule text for each rule so the embedding
+                # model matches non-standard phrasing (e.g. "strip" -> MW, etc.)
+                rule_texts = [_build_rule_text(r) for r in self._rules]
+                self._rule_embeddings = self._model.encode(
+                    rule_texts, convert_to_tensor=True, show_progress_bar=False
+                )
+                self._initialized = True
+                logger.info("Semantic embedding model %s ready (%d rules embedded)", self.model_name, len(self._rules))
+                return True
+            except Exception as exc:  # pragma: no cover
+                logger.warning("Semantic model initialization skipped or failed: %s", exc)
+                self._model = None
+                self._initialized = True
+                return False
+            finally:
+                _model_loading = False
 
     def search(self, query: str, top_k: int = 5) -> list[tuple[SelectionRule, float]]:
-        """Returns top_k (SelectionRule, similarity_score) pairs for the given narrative query."""
+        """Returns top_k (SelectionRule, similarity_score) pairs for the given narrative query.
+
+        Never blocks HTTP requests if the model is currently loading or unavailable.
+        """
         if not query or not query.strip():
             return []
 
-        if not self._initialize() or self._model is None:
+        # If model is not initialized and not currently loading, try initializing
+        if not self._initialized and not _model_loading:
+            self._initialize()
+
+        if not self.is_ready:
             return []
 
         try:
