@@ -40,7 +40,7 @@ LOCATION_SUBJECT_RULES: list[tuple[list[str], str, list[str]]] = [
     (["threshold", "thr"], "MT", ["MR"]),
     (["taxiway", "twy", "taxi track"], "MX", []),
     (["apron", "parking area", "ramp"], "MN", ["MK"]),
-    (["aircraft stand", "stand"], "MP", ["MN"]),
+    (["aircraft stands", "aircraft stand", "acft stands", "acft stand", "stands", "stand"], "MP", ["MN"]),
     (["daylight marking", "runway marking", "marking"], "MM", ["MR"]),
     (["runway", "rwy"], "MR", []),
     (["movement area", "manoeuvring area"], "MA", []),
@@ -73,28 +73,31 @@ LOCATION_SUBJECT_RULES: list[tuple[list[str], str, list[str]]] = [
 
 # ---------------------------------------------------------------------------
 # Condition phrase -> Doc 8126 condition codes
+# Primary operational status (LC/AS/AK/AO) takes precedence over background reasons
+# (e.g. "CLOSED DUE TO WIP" -> LC (Closed), not HW (Work in progress), because
+# operational closure determines PIB routing, Purpose BO/NBO, and pilot impact).
 # ---------------------------------------------------------------------------
 CONDITION_RULES: list[tuple[list[str], str]] = [
-    # Work / hazard (check before "closed")
-    (["work in progress", "wip", "equipment and personnel", "presence of equipment",
-      "personnel", "construction", "rehabilitation", "resurfacing",
-      "milling", "painting", "marking work"], "HW"),
-    # Closed / unavailable (Doc 8126 condition code LC)
+    # Closed / unavailable (Doc 8126 condition code LC) - takes operational precedence
     (["closed", "clsd", "not available", "unavailable", "not avbl",
       "temporarily closed", "temp clsd"], "LC"),
-    # Unserviceable
+    # Unserviceable (Doc 8126 condition code AS)
     (["unserviceable", "u/s", "unserv", "out of service", "oos",
       "defective", "inoperative", "inop"], "AS"),
-    # Restricted / limited
-    (["restricted", "restriction", "limited use", "partial"], "RL"),
-    # Resumed / restored
+    # Resumed / restored (Doc 8126 condition code AK)
     (["resumed", "restored", "back in service", "serviceable",
       "returned to service", "operational again"], "AK"),
-    # Available / operational
+    # Available / operational (Doc 8126 condition code AO)
     (["available", "avbl", "operational", "in service",
       "commissioned", "activated"], "AO"),
-    # Reduced / changed
+    # Restricted / limited (Doc 8126 condition code RL)
+    (["restricted", "restriction", "limited use", "partial"], "RL"),
+    # Reduced / changed (Doc 8126 condition code AC)
     (["reduced", "shortened", "changed", "amended", "revised"], "AC"),
+    # Work in progress / hazard (Doc 8126 condition code HW - applies when not closed)
+    (["work in progress", "wip", "equipment and personnel", "presence of equipment",
+      "presence of workers", "workers and vehicles", "personnel", "construction",
+      "rehabilitation", "resurfacing", "milling", "painting", "marking work"], "HW"),
     # Obstacles
     (["obstacle", "obstruction", "obst", "crane", "tower erected",
       "structure", "antenna", "mast"], "OB"),

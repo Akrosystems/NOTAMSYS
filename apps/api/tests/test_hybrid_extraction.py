@@ -207,3 +207,17 @@ def test_hybrid_narrative_scoring_q_code_suggestions() -> None:
     assert suggs_strip[0]["confidence"] >= 80
     assert suggs_strip[0]["coordinates_radius"] == "0933N00052W005"
 
+    # 7. Operational aircraft stands closure due to WIP: closure takes precedence (QMPLC over QMPHW)
+    suggs_stands = suggest_q_codes(
+        "ACFT STANDS S9 AND S10 CLOSED DUE TO WIP. PRESENCE OF WORKERS AND ENGINES. CAUTION ADVISED. REF AIP SUP 103/A/26GO PHASE 3 ACT",
+        location_indicator="DXXX",
+        limit=3,
+    )
+    assert len(suggs_stands) >= 1
+    assert suggs_stands[0]["q_code"] == "QMPLC"
+    assert suggs_stands[0]["subject"] == "aircraft stands"
+    assert suggs_stands[0]["condition"] == "closed"
+    assert suggs_stands[0]["confidence"] >= 80
+    assert suggs_stands[0]["purpose"] == "BO"
+    assert suggs_stands[0]["coordinates_radius"] == "0610N00115E005"
+
